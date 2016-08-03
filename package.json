@@ -1,0 +1,24 @@
+{
+  "name": "fb-app-test",
+  "version": "1.0.0",
+  "description": "Trying out making fb app/bot for messenger",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NoraKitchen/fb-app-test.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/NoraKitchen/fb-app-test/issues"
+  },
+  "homepage": "https://github.com/NoraKitchen/fb-app-test#readme",
+  "dependencies": {
+    "body-parser": "^1.15.2",
+    "express": "^4.14.0"
+  }
+}
