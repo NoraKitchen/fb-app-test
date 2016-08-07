@@ -75,7 +75,8 @@ var actions = {
         }
     },
     echoLocation({context, entities}) {
-        context.location = entities.location;
+        //this [0].value business is from the firstEntityValue code...guess it doesn't just come back as expect
+        context.location = entities.location[0].value;
         return Promise.resolve(context);
     },
     longTime({context, entities}) {
