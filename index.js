@@ -3,6 +3,7 @@ var server = express();
 var port = process.env.PORT || 8080; //process is note obj, looks if user has port? was in heroku notes
 var bodyParser = require('body-parser');
 var request = require('request');
+var fetch = require('node-fetch');
 
 server.use(bodyParser.json());
 
@@ -62,11 +63,15 @@ var actions = {
         //retrieve user whose session belongs to
         var recipientId = sessions[request.sessionId].fbid;
         if (recipientId) {
-            return new Promise(function (resolve, reject) {
-                console.log('user said...', request.text);
-                console.log('sending...', JSON.stringify(response));
-                return resolve();
-            });
+            return sendFbMessage(recipientId, response.text)
+            .then(function(){
+                return null;
+            }) //.catch here 
+            // return new Promise(function (resolve, reject) {
+            //     console.log('user said...', request.text);
+            //     console.log('sending...', JSON.stringify(response));
+            //     return resolve();
+            // });
         }
     },
     echoLocation({context, entities}) {
@@ -134,6 +139,7 @@ server.post('/webhook', function (req, res) {
                         //bot will run all actions till nothing left to do 
                         wit.runActions(sessionId, senderText, sessions[sessionId].context
                         ).then(function (context) {
+                            console.log("actions run complete")
                             sessions[sessionId].context = context;
                             //now bot is waiting for futher emssages?
                             //based on session state/business logic, might delete session here
@@ -141,7 +147,7 @@ server.post('/webhook', function (req, res) {
                         })
                     }
 
-                    // //code from when message was sent by fb bot?
+                    //this code moved to callSendApi
                     // var messageData = {
                     //     recipient: {
                     //         id: messagingEvent.sender.id
@@ -173,7 +179,29 @@ server.post('/webhook', function (req, res) {
 });
 
 
-//from when fb bot sent messages back, not relevant anymore?
+function sendFbMessage(id, text) {
+  var body = JSON.stringify({
+      //upt in quotes, dunno if ness
+    recipient: {"id": id},
+    message: {"text": text},
+  });
+  //uses fetch instead of request like below
+  var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
+  return fetch('https://graph.facebook.com/me/messages?' + qs, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body,
+  })
+  .then(rsp => rsp.json())
+  .then(json => {
+    if (json.error && json.error.message) {
+      throw new Error(json.error.message);
+    }
+    return json;
+  });
+};
+
+//code from original just-fb version, similar to above
 // function callSendApi(messageData) {
 //     request({
 //         uri: 'https://graph.facebook.com/v2.6/me/messages',
