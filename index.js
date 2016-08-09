@@ -19,7 +19,7 @@ server.listen(port, function () { console.log("server running on port " + port) 
 
 //*
 var Wit = null;
-let log = null;
+var log = null;
 try {
     // if running from repo
     Wit = require('../').Wit;
@@ -143,7 +143,7 @@ server.post('/webhook', function (req, res) {
                             console.log("actions run complete")
                             sessions[sessionId].context = context;
                             //now bot is waiting for futher emssages?
-                            //based on session state/business logic, might delete session here
+                            //based on session state/business logic, might defcone session here
                             //if (context['done']){delete sessions[sessionId]}
                         })
                     }
