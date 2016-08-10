@@ -116,7 +116,7 @@ var actions = {
         }
 
         return Promise.resolve(context);
-    },
+    }
 };
 
 
@@ -178,6 +178,9 @@ server.post('/webhook', function (req, res) {
                             //now bot is waiting for futher emssages?
                             //based on session state/business logic, might defcone session here
                             //if (context['done']){delete sessions[sessionId]}
+                            if (sessions[sessionId].context.fakeSearchResults) {
+                                delete sessions[sessionId];
+                            }
                         })
                     }
 
