@@ -2,6 +2,7 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var request = require('request');
 var fetch = require('node-fetch');
+var config = require('config');
 var port = process.env.PORT || 8080;
 
 
@@ -16,7 +17,13 @@ server.listen(port, function () { console.log("server running on port " + port) 
 
 // server.use('/test', express.static(__dirname + '/public'))
 
-//*
+var VALIDATION_TOKEN = config.get("validationToken");
+var PAGE_ACCESS_TOKEN = config.get("pageAccessToken");
+var WIT_TOKEN = config.get("witToken");
+
+
+
+//******WIT CODE******//
 var Wit = null;
 var log = null;
 try {
@@ -26,12 +33,8 @@ try {
     Wit = require('node-wit').Wit;
 }
 
-// var WIT_TOKEN = process.env.WIT_TOKEN;
-var WIT_TOKEN = "KY2YTSDBZKPRRVG5TF4GKHFGPXJ2WP2G";
 
-
-// This will contain all user sessions.
-// Each session has an entry:
+// Get the user session. The session stores the fbid of the user the conversation belongs to, and the Wit context objeect built through the conversation
 // sessionId -> {fbid: facebookUserId, context: sessionState}
 var sessions = {};
 
@@ -52,6 +55,10 @@ function findOrCreateSession(fbid) {
     return sessionId;
 };
 
+
+//The Wit actions object all functions you may call during the conversation
+//And the 'send' function that says what happens whenever Wit formulates a reply and sends it back
+//In this case we call sendFbMessage to send the response to the facebook user indicated
 var actions = {
     send(request, response) {
         //in fb exaple had diff (args), think will work this way...
@@ -74,7 +81,7 @@ var actions = {
         }
     },
     echoLocation({context:context, entities:entities}) {
-        //this [0].value business is from the firstEntityValue code...guess it doesn't just come back as expect
+        //this [0].value business is from the firstEntityValue code in the wit.ai example...guess it doesn't just come back as you'd expect, but as an array
         context.location = entities.location[0].value;
         return Promise.resolve(context);
     },
@@ -85,14 +92,11 @@ var actions = {
 };
 
 
-//*
+//****END WIT CODE****//    
 
 
 
-var VALIDATION_TOKEN = "verifyMe";
-var PAGE_ACCESS_TOKEN = "EAAMVFy1iwHkBAOurpfdBWP4sk5SLKCzZCapPpH466sHC9oDws6nvJJTMrZAYZCA88sNMuIk4oZAcNAfuYOFrnpKZAbakO8JI3AvUjuiyARznUZBZB8e9XBWAjq9rYMkhpE6vQcm8k3fBcgbso4J2u8ZA51fUOU8I812TxPuJkPD9ZAwZDZD";
-// var PAGE_ACCESS_TOKEN = process.env.WIT_TOKEN;
-
+//Set up webhook for facebook messenger platform
 server.get('/webhook', function (req, res) {
     if (req.query['hub.mode'] === 'subscribe' &&
         req.query['hub.verify_token'] === VALIDATION_TOKEN) {
@@ -104,6 +108,8 @@ server.get('/webhook', function (req, res) {
     }
 });
 
+
+//
 server.post('/webhook', function (req, res) {
     // console.log(util.inspect(req, {showHidden: false, depth: null}));
     var data = req.body;
@@ -147,16 +153,8 @@ server.post('/webhook', function (req, res) {
                         })
                     }
 
-                    //this code moved to callSendApi
-                    // var messageData = {
-                    //     recipient: {
-                    //         id: messagingEvent.sender.id
-                    //     },
-                    //     message: {
-                    //         text: messagingEvent.message.text + ", or so they say."
-                    //     }
-                    // }
-                    // callSendApi(messageData);
+                    // callSendApi(messageData) was originally called here to send a reply back to user
+                    //an equivalent function (sendFBMessage) is now called within the Wit 'send' action, which will always run during wit.runActions called above
 
                 } else if (messagingEvent.delivery) {
                     //   receivedDeliveryConfirmation(messagingEvent);
@@ -224,4 +222,4 @@ function sendFbMessage(id, text) {
 //     });
 // }
 
-var wit= new Wit({accessToken: WIT_TOKEN, actions: actions});
+var wit = new Wit({accessToken: WIT_TOKEN, actions: actions});
