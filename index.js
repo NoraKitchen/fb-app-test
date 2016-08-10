@@ -55,6 +55,19 @@ function findOrCreateSession(fbid) {
     return sessionId;
 };
 
+//This code attempts to pull entity values/variables for use in functions/actions below
+function firstEntityValue(entities, entity) {
+    var val = entities && entities[entity] &&
+        Array.isArray(entities[entity]) &&
+        entities[entity].length > 0 &&
+        entities[entity][0].value
+        ;
+    if (!val) {
+        return null;
+    }
+    return typeof val === 'object' ? val.value : val;
+};
+
 
 //The Wit actions object all functions you may call during the conversation
 //And the 'send' function that says what happens whenever Wit formulates a reply and sends it back
@@ -70,9 +83,9 @@ var actions = {
         var recipientId = sessions[request.sessionId].fbid;
         if (recipientId) {
             return sendFbMessage(recipientId, response.text)
-            .then(function(){
-                return null;
-            }) //.catch here 
+                .then(function () {
+                    return null;
+                }) //.catch here 
             // return new Promise(function (resolve, reject) {
             //     console.log('user said...', request.text);
             //     console.log('sending...', JSON.stringify(response));
@@ -80,13 +93,28 @@ var actions = {
             // });
         }
     },
-    echoLocation({context:context, entities:entities}) {
+    businessByName({context, entities}) {
         //this [0].value business is from the firstEntityValue code in the wit.ai example...guess it doesn't just come back as you'd expect, but as an array
-        context.location = entities.location[0].value;
-        return Promise.resolve(context);
-    },
-    longTime({context:context, entities:entities}) {
-        context.years = Math.random() * (100 - 2) + 2;
+        var businessName = firstEntityValue(entities, "business_name")
+        var city = firstEntityValue(entities, "city")
+        var state = firstEntityValue(entities, "state")
+
+        if (businessName && city && state) {
+            delete context.missingState;
+            delete context.missingLocation;
+            delete context.missingBusinessName;
+            context.fakeSearchResults = "This is a list of businesses called " + businessName + " in city " + city + " in the state of " + state;
+        } else if (bussinessName && city) {
+            delete context.missingBusinessName;
+            delete context.missingLocation;
+            context.missingState = true;
+        } else if (businessName) {
+            delete context.missingBusinessName;
+            context.missingLocation = true;
+        } else {
+            context.missingBusinessName = true;
+        }
+
         return Promise.resolve(context);
     },
 };
@@ -178,25 +206,25 @@ server.post('/webhook', function (req, res) {
 
 
 function sendFbMessage(id, text) {
-  var body = JSON.stringify({
-      //upt in quotes, dunno if ness
-    recipient: {"id": id},
-    message: {"text": text},
-  });
-  //uses fetch instead of request like below
-  var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
-  return fetch('https://graph.facebook.com/me/messages?' + qs, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body,
-  })
-  .then(rsp => rsp.json())
-  .then(json => {
-    if (json.error && json.error.message) {
-      throw new Error(json.error.message);
-    }
-    return json;
-  });
+    var body = JSON.stringify({
+        //upt in quotes, dunno if ness
+        recipient: { "id": id },
+        message: { "text": text },
+    });
+    //uses fetch instead of request like below
+    var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
+    return fetch('https://graph.facebook.com/me/messages?' + qs, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+    })
+        .then(rsp => rsp.json())
+        .then(json => {
+            if (json.error && json.error.message) {
+                throw new Error(json.error.message);
+            }
+            return json;
+        });
 };
 
 //code from original just-fb version, similar to above
@@ -222,4 +250,4 @@ function sendFbMessage(id, text) {
 //     });
 // }
 
-var wit = new Wit({accessToken: WIT_TOKEN, actions: actions});
+var wit = new Wit({ accessToken: WIT_TOKEN, actions: actions });
