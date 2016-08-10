@@ -1,13 +1,12 @@
 var express = require('express');
-var server = express();
-var port = process.env.PORT || 8080; //process is note obj, looks if user has port? was in heroku notes
 var bodyParser = require('body-parser');
 var request = require('request');
 var fetch = require('node-fetch');
+var port = process.env.PORT || 8080;
 
+
+var server = express();
 server.use(bodyParser.json());
-
-
 server.listen(port, function () { console.log("server running on port " + port) });
 
 // server.get('/test', function(req, res){
@@ -74,12 +73,12 @@ var actions = {
             // });
         }
     },
-    echoLocation({context, entities}) {
+    echoLocation({context:context, entities:entities}) {
         //this [0].value business is from the firstEntityValue code...guess it doesn't just come back as expect
         context.location = entities.location[0].value;
         return Promise.resolve(context);
     },
-    longTime({context, entities}) {
+    longTime({context:context, entities:entities}) {
         context.years = Math.random() * (100 - 2) + 2;
         return Promise.resolve(context);
     },
@@ -91,7 +90,7 @@ var actions = {
 
 
 var VALIDATION_TOKEN = "verifyMe";
-var PAGE_ACCESS_TOKEN = "EAAMVFy1iwHkBAKtF4gZBezhyeZAdHZCgUdfwwBPwiKkGG3bTQ7cgY9JN7wZAPqfie7VEGs5tURss4qnfDhTzDXcCD7Wve3BlyZBubOYXidORWq0bQEIJpv2ZAlH8gf9JOqMe1WGh7gynBaYZB03AkCrkSUmYCvNo031ODYrmp0nHQZDZD";
+var PAGE_ACCESS_TOKEN = "EAAMVFy1iwHkBAPvZAk2RlGZB9ZCgepZCKdQyLk2JhYnoowrE0ZCTo8uoAYI6AxYvs5OkOl3n4CB7s2PF1v5U3oOUHvRLWz5sGjzsgENY3dFui9xnShC4SwgnmGJ4yynClT67vXL6mLbytJE3f2gY2PbmPdu5zAyxOlVm6dDl4kgZDZD";
 // var PAGE_ACCESS_TOKEN = process.env.WIT_TOKEN;
 
 server.get('/webhook', function (req, res) {
