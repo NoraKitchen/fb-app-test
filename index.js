@@ -3,6 +3,7 @@ var bodyParser = require('body-parser');
 var request = require('request');
 var fetch = require('node-fetch');
 var config = require('config');
+var parser = require('parse-address')
 var port = process.env.PORT || 8080;
 
 
@@ -93,29 +94,135 @@ var actions = {
             // });
         }
     },
-    businessByName({context, entities}) {
-        //this [0].value business is from the firstEntityValue code in the wit.ai example...guess it doesn't just come back as you'd expect, but as an array
-        var businessName = firstEntityValue(entities, "business_name")
-        var city = firstEntityValue(entities, "city")
-        var state = firstEntityValue(entities, "state")
+    collectBusinessName({context, entities}) {
+        //the structure of entities is a little odd. firstEntityValue digs into it and pulls out the actual text value we want 
+        //no longer called business_name.....location??? local_search_query?
+        console.log(entities);
+        var businessName = firstEntityValue(entities, "local_search_query")
 
-        if (businessName && city && state) {
-            delete context.missingState;
-            delete context.missingLocation;
-            delete context.missingBusinessName;
-            context.fakeSearchResults = "This is a list of businesses called " + businessName + " in city " + city + " in the state of " + state;
-        } else if (bussinessName && city) {
-            delete context.missingBusinessName;
-            delete context.missingLocation;
-            context.missingState = true;
-        } else if (businessName) {
-            delete context.missingBusinessName;
-            context.missingLocation = true;
+        if (businessName) {
+            context.businessName = businessName;
+            console.log("Captured business name " + context.businessName);
+            if (context.missingName) {
+                delete context.missingName;
+            }
         } else {
-            context.missingBusinessName = true;
+            context.missingName = true;
         }
-
         return Promise.resolve(context);
+    },
+    detectLocation({context, entities}) {
+        console.log("Attempting to auto-detect location.")
+        //here would attempt to detect user location automatically
+        //when retrieved, it would add the location to context
+        //context.city = detectedCity;
+        //context.state = detectedState
+        context.location = "<auto detected location here>"
+        if (context.city && context.state) {
+            delete context.locationNotFound;
+        }
+        console.log("Unable to auto-detect location.")
+        context.locationNotFound = true;
+        //remember to delete this prop after location determined
+        //}
+        return Promise.resolve(context);
+    },
+    // collectCityState({context, entities}) {
+    //     console.log("City and State recieved.")
+    //     console.log(entities);
+    //     //wit auto-detects when the user types a location pretty well, but it does not parse into city/state very well
+    //     //In the event parsing to city/state does work (or I am able to train it better later), this function will collect the values
+    //     var city = firstEntityValue(entities, "city");
+    //     var state = firstEntityValue(entities, "state");
+
+    //     if (city && state) {
+    //         context.city = city;
+    //         context.state = state;
+    //         context.location = city + ", " + state; //location stored for display in chatbox
+    //         delete context.locationNotFound;
+    //         context.locationFound = true;
+    //     //at this point, values for business name, city, and state have been collected
+    //     //ready to search BBB API
+    //     }
+    //     else {
+    //         context.locationNotFound = true;
+    //     }
+    //     return Promise.resolve(context);
+    // },
+    collectLocation({context, entities}) {
+        console.log("Location string accepted.")
+        //keep tgetting a null location here??? //this was problem with old app, is it still?
+        // console.log("am i still getting null location: " + entities);
+
+        var rawLocation = firstEntityValue(entities, "location")
+        console.log("Location recieved: " + rawLocation + ", checking input type.")
+        //check if location recieved was a zip
+        if (rawLocation & !isNaN(rawLocation)) {
+            console.log("Location is zip. Storing zip.")
+            context.zip = rawLocation;
+            context.location = rawLocation;
+
+            //at this point, values for business name and zip have been collected
+            //ready to search BBB API
+            context.results = "<search results>";
+        }
+        else {
+            //the location collected from the user input was not a zip.
+            //likely it is a city/state combo wit failed to parse and took as a whole ("Boise, Idaho 83709", "Newport, OR", etc.)
+
+            //check here the string contains a space or comma--ensure city AND state entered
+            //if user enters a city with a space in the name ("san francisco"), it will unfortuantely pass this test, but will likely ultimately still fail the parse, which is good
+            if (rawLocation.indexOf(" ") >= 0 || rawLocation.indexOf(",") >= 0) {
+                //the address parser requires a street address to work reliably, hence the placeholder
+                var placeholder = "111 Placeholder"
+                var parsedLocation = parser.parseLocation(rawLocation);
+
+                var city = parsedLocation.city;
+                var state = parsedLocation.state;
+                var zip = parsedLocation.zip; //zip may end up here if user listed city/state with it
+
+                if (!city && !state && !zip) {
+                    console.log("Address parse returned nothing.")
+                    context.locationNotFound = true;
+                } else if (zip) {
+                    //zip is parsed more reliably so default to using that if present
+                    console.log("Zip found.")
+                    context.zip = zip;
+                    context.location = zip; //location stored for dispay in chatbox
+                    delete context.locationNotFound;
+                } else if (city && state) {
+                    console.log("City and state found.")
+                    context.city = city;
+                    context.state = state;
+                    context.location = city + ", " + state;
+                    delete context.locationNotFound;
+                } else {
+                    //only a city or only a state was found. don't bother accepting the information.
+                    context.locationNotFound = true;
+                }
+            } else {
+                //location did not contain a space or comma, so is likely incomplete
+                console.log("Location incomplete.")
+                context.locationNotFound = true;
+            }
+        }
+        return Promise.resolve(context);
+    },
+    executeSearch({context, entities}) {
+        //pull the zip or city and state off the context
+        //and run a search with the BBB API
+
+        var searchResults = true; //just here for testing, assume we got some results
+
+        if (searchResults) {
+            context.results = "<search results>"; //the real search results go here
+        } else {
+            context.noMatches = true;
+        }
+        return Promise.resolve(context);
+    },
+    restartSession({context}) {
+        context.endSession = true;
     }
 };
 
@@ -178,9 +285,16 @@ server.post('/webhook', function (req, res) {
                             //now bot is waiting for futher emssages?
                             //based on session state/business logic, might defcone session here
                             //if (context['done']){delete sessions[sessionId]}
-                            if (sessions[sessionId].context.fakeSearchResults) {
+                            if (context.results){
+                                //code to display results here, possibly buttons to restart search or display more
+                                //for now I am auto-deleting session/search till we have buttons to restart
+                                delete session[sessionId];
+                            } 
+                            if (sessions[sessionId].context.endSession) {
+                                //search returned no results, ending session to restart search
                                 delete sessions[sessionId];
                             }
+
                         })
                     }
 
