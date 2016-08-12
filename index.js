@@ -98,7 +98,7 @@ var actions = {
         //the structure of entities is a little odd. firstEntityValue digs into it and pulls out the actual text value we want 
         //no longer called business_name.....location??? local_search_query?
         console.log(entities);
-        var businessName = firstEntityValue(entities, "local_search_query")
+        var businessName = firstEntityValue(entities, "local_search_query");
 
         if (businessName) {
             context.businessName = businessName;
@@ -107,7 +107,33 @@ var actions = {
                 delete context.missingName;
             }
         } else {
-            context.missingName = true;
+            //wit frequently does not pick up the business name correctly and logs it as another entity
+            //check if any other entities have been collected and save them as a possible business name
+            //will then check with user if it is correct
+            console.log("No business name found. Checking for other entities collected by Wit.")
+            var possibleBusinessNames = [];
+            for (var entity in entities) {
+                var currentEntityValue = firstEntityValue(entities, entity);
+                possibleBusinessNames.push(currentEntityValue);
+            };
+
+            if (possibleBusinessNames.length === 1){
+                console.log("One other entity found. Suggesting as possible business name.")
+                context.possibleBusinessName = possibleBusinessNames[0];
+            } else {
+                //either no other entities were found, or multiple other entites were found
+                console.log("no other entities found, or multi entities. business name capture failed.")
+                context.missingName = true;
+            }
+
+
+        
+        // } else if (possibleBusinessName) {
+        //     console.log("Captured a 'location' instead of BN. Double check.")
+        //     context.possibleBusinessName = possibleBusinessName;
+        // } else {
+        //     console.log("Capture of business name unsuccessful.")
+        //     context.missingName = true;
         }
         return Promise.resolve(context);
     },
@@ -115,16 +141,17 @@ var actions = {
         console.log("Attempting to auto-detect location.")
         //here would attempt to detect user location automatically
         //when retrieved, it would add the location to context
-        //context.city = detectedCity;
-        //context.state = detectedState
-        context.location = "<auto detected location here>"
+        context.city = "<detectedCity>"; //for testing
+        context.state = "<detectedState>"; //for testing
+
         if (context.city && context.state) {
+            console.log("City and state identified.")
+            context.displayLocation = context.city + ", " + context.state
             delete context.locationNotFound;
+        } else {
+            console.log("Unable to auto-detect location.")
+            context.locationNotFound = true;
         }
-        console.log("Unable to auto-detect location.")
-        context.locationNotFound = true;
-        //remember to delete this prop after location determined
-        //}
         return Promise.resolve(context);
     },
     // collectCityState({context, entities}) {
@@ -151,35 +178,38 @@ var actions = {
     // },
     collectLocation({context, entities}) {
         console.log("Location string accepted.")
-        //keep tgetting a null location here??? //this was problem with old app, is it still?
-        // console.log("am i still getting null location: " + entities);
+        console.log(entities);
+        //getting a null location----probably stored in yes/no
 
+        var zip = firstEntityValue(entities, "number")
         var rawLocation = firstEntityValue(entities, "location")
         console.log("Location recieved: " + rawLocation + ", checking input type.")
         //check if location recieved was a zip
-        if (rawLocation & !isNaN(rawLocation)) {
+        if (zip) {
             console.log("Location is zip. Storing zip.")
-            context.zip = rawLocation;
-            context.location = rawLocation;
+            context.zip = zip;
+            context.displayLocation = zip;
 
             //at this point, values for business name and zip have been collected
             //ready to search BBB API
-            context.results = "<search results>";
         }
-        else {
+        else if (rawLocation) {
             //the location collected from the user input was not a zip.
             //likely it is a city/state combo wit failed to parse and took as a whole ("Boise, Idaho 83709", "Newport, OR", etc.)
 
             //check here the string contains a space or comma--ensure city AND state entered
             //if user enters a city with a space in the name ("san francisco"), it will unfortuantely pass this test, but will likely ultimately still fail the parse, which is good
             if (rawLocation.indexOf(" ") >= 0 || rawLocation.indexOf(",") >= 0) {
+                console.log("Parsing location into city and state.")
                 //the address parser requires a street address to work reliably, hence the placeholder
-                var placeholder = "111 Placeholder"
-                var parsedLocation = parser.parseLocation(rawLocation);
+                var placeholder = "111 Placeholder "
+                var parsedLocation = parser.parseLocation(placeholder + rawLocation);
+                console.log(parsedLocation);
 
                 var city = parsedLocation.city;
                 var state = parsedLocation.state;
                 var zip = parsedLocation.zip; //zip may end up here if user listed city/state with it
+
 
                 if (!city && !state && !zip) {
                     console.log("Address parse returned nothing.")
@@ -188,13 +218,13 @@ var actions = {
                     //zip is parsed more reliably so default to using that if present
                     console.log("Zip found.")
                     context.zip = zip;
-                    context.location = zip; //location stored for dispay in chatbox
+                    context.displayLocation = zip; //location stored for dispay in chatbox
                     delete context.locationNotFound;
                 } else if (city && state) {
                     console.log("City and state found.")
                     context.city = city;
                     context.state = state;
-                    context.location = city + ", " + state;
+                    context.displayLocation = city + ", " + state;
                     delete context.locationNotFound;
                 } else {
                     //only a city or only a state was found. don't bother accepting the information.
@@ -205,16 +235,22 @@ var actions = {
                 console.log("Location incomplete.")
                 context.locationNotFound = true;
             }
+        } else {
+            //no location found in input
+            console.log("Neither zip number nor location string extracted.")
+            context.locationNotFound = true;
         }
         return Promise.resolve(context);
     },
     executeSearch({context, entities}) {
         //pull the zip or city and state off the context
         //and run a search with the BBB API
+        console.log("Searching BBB API.")
 
         var searchResults = true; //just here for testing, assume we got some results
 
         if (searchResults) {
+            delete context.noMatches;
             context.results = "<search results>"; //the real search results go here
         } else {
             context.noMatches = true;
@@ -223,6 +259,52 @@ var actions = {
     },
     restartSession({context}) {
         context.endSession = true;
+        return Promise.resolve(context);
+    },
+    confirmUseCurrentLocation({context, entities}) {
+        //process answer to whether user wants to use current location data or not
+        console.log("confirming y/n to use current location")
+        var answer = firstEntityValue(entities, "yes_no");
+        if (answer === "Yes") {
+            delete context.retry;
+            delete context.doNotUseCL;
+            context.useCL = true;
+        }
+        else if (answer === "No") {
+            delete context.retry;
+            delete context.useCL;
+            delete context.city;
+            delete context.state;
+            delete context.displayLocation;
+            context.doNotUseCL = true;
+        }
+        else {
+            context.retry = true;
+        }
+        return Promise.resolve(context);
+    },
+    confirmBusinessName({context, entities}) {
+        //confirm collected business name right
+        console.log("confirming y/n business name collected is correct")
+        var answer = firstEntityValue(entities, "yes_no");
+
+        if (answer === "Yes") {
+            delete context.businessNameWrong;
+            delete context.retry;
+            context.businessNameConfirmed = true;
+        } else if (answer === "No") {
+            delete context.businessNameConfirmed;
+            delete context.retry;
+            context.businessNameWrong = true;
+        } else {
+            context.retry = true;
+        }
+        return Promise.resolve(context);
+    },
+    setBusinessName({context, entities}) {
+        context.businessName = context.possibleBusinessName;
+        delete context.possibleBusinessName;
+        return Promise.resolve(context);
     }
 };
 
@@ -285,13 +367,14 @@ server.post('/webhook', function (req, res) {
                             //now bot is waiting for futher emssages?
                             //based on session state/business logic, might defcone session here
                             //if (context['done']){delete sessions[sessionId]}
-                            if (context.results){
-                                //code to display results here, possibly buttons to restart search or display more
-                                //for now I am auto-deleting session/search till we have buttons to restart
-                                delete session[sessionId];
-                            } 
                             if (sessions[sessionId].context.endSession) {
                                 //search returned no results, ending session to restart search
+                                console.log("restarting session")
+                                delete sessions[sessionId];
+                            } else if (context.results) {
+                                //code to display results here, possibly buttons to restart search or display more
+                                //for now I am auto-deleting session/search till we have buttons to restart
+                                console.log("restarting session")
                                 delete sessions[sessionId];
                             }
 
@@ -303,7 +386,7 @@ server.post('/webhook', function (req, res) {
 
                 } else if (messagingEvent.delivery) {
                     //   receivedDeliveryConfirmation(messagingEvent);
-                    console.log("got delivery");
+                    console.log("got messagingEvent delivery");
                 } else if (messagingEvent.postback) {
                     //   receivedPostback(messagingEvent);
                     console.log('got postback')
