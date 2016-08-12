@@ -70,9 +70,9 @@ function firstEntityValue(entities, entity) {
 };
 
 
-//The Wit actions object all functions you may call during the conversation
-//And the 'send' function that says what happens whenever Wit formulates a reply and sends it back
-//In this case we call sendFbMessage to send the response to the facebook user indicated
+//The Wit actions object - mustin include all functions you may call during the conversation
+//as well as the 'send' function that says what happens whenever Wit formulates a reply and sends it back
+//In this case we call sendFbMessage in the send method, in order to send the response to the facebook user indicated
 var actions = {
     send(request, response) {
         //in fb exaple had diff (args), think will work this way...
@@ -96,7 +96,6 @@ var actions = {
     },
     collectBusinessName({context, entities}) {
         //the structure of entities is a little odd. firstEntityValue digs into it and pulls out the actual text value we want 
-        //no longer called business_name.....location??? local_search_query?
         console.log(entities);
         var businessName = firstEntityValue(entities, "local_search_query");
 
@@ -141,6 +140,8 @@ var actions = {
         console.log("Attempting to auto-detect location.")
         //here would attempt to detect user location automatically
         //when retrieved, it would add the location to context
+
+        //pretending these values were returned for testing purposes
         context.city = "<detectedCity>"; //for testing
         context.state = "<detectedState>"; //for testing
 
@@ -154,32 +155,9 @@ var actions = {
         }
         return Promise.resolve(context);
     },
-    // collectCityState({context, entities}) {
-    //     console.log("City and State recieved.")
-    //     console.log(entities);
-    //     //wit auto-detects when the user types a location pretty well, but it does not parse into city/state very well
-    //     //In the event parsing to city/state does work (or I am able to train it better later), this function will collect the values
-    //     var city = firstEntityValue(entities, "city");
-    //     var state = firstEntityValue(entities, "state");
-
-    //     if (city && state) {
-    //         context.city = city;
-    //         context.state = state;
-    //         context.location = city + ", " + state; //location stored for display in chatbox
-    //         delete context.locationNotFound;
-    //         context.locationFound = true;
-    //     //at this point, values for business name, city, and state have been collected
-    //     //ready to search BBB API
-    //     }
-    //     else {
-    //         context.locationNotFound = true;
-    //     }
-    //     return Promise.resolve(context);
-    // },
     collectLocation({context, entities}) {
         console.log("Location string accepted.")
-        console.log(entities);
-        //getting a null location----probably stored in yes/no
+        console.log(entities);  //for testing
 
         var zip = firstEntityValue(entities, "number")
         var rawLocation = firstEntityValue(entities, "location")
