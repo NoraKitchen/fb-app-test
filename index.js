@@ -56,8 +56,8 @@ function findOrCreateSession(fbid) {
     return sessionId;
 };
 
-//This code attempts to pull entity values/variables for use in functions/actions below
 function firstEntityValue(entities, entity) {
+    //Attempts to pull entity values/variables for use in functions/actions below
     var val = entities && entities[entity] &&
         Array.isArray(entities[entity]) &&
         entities[entity].length > 0 &&
@@ -68,6 +68,49 @@ function firstEntityValue(entities, entity) {
     }
     return typeof val === 'object' ? val.value : val;
 };
+
+function checkOtherEntities(entities) {
+    //Wit frequently categorizes entities incorrectly (e.g. files a business name under 'location')
+    //This will check all other entities collected from the user input and store their values
+    //If one single other entity/value is found, it is likey what the user intended.
+    //The value is returned so we can check with the user what they meant by it.
+
+    console.log("Expected entity not found in user input. Checking other entities for possible values.")
+    var possibleValues = [];
+
+    for (var entity in entities) {
+        var currentEntityValue = firstEntityValue(entities, entity);
+        possibleValues.push(currentEntityValue);
+    };
+
+    if (possibleValues.length === 1) {
+        console.log("One other entity found. Returning as possible intended value.")
+        // context.possibleBusinessName = possibleBusinessNames[0];
+        return possibleValues[0];
+    } else {
+        //Either no other entities were found, or multiple other entites were found, making it difficult to determine what the user meant.
+        console.log("No other entities found, or multi entities. Target entity capture failed.")
+        return false;
+        // context.missingName = true;
+    }
+}
+
+function confirmYesNo(context, answer, confirmingValue) {
+    //While in theory Wit should be able to react to yes/no answers from user, I could not get it to do so accurately
+    //This function will help it respond to yes/no input more reliably
+    //It is specifically for checking/confirming when Wit has probably not picked up/categorized user input correctly, and we want to double check we want to double check with the user
+    if (answer === "Yes") {
+        delete context[confirmingValue + "Wrong"];
+        delete context.retry;
+        context[confirmingValue + "Confirmed"] = true;
+    } else if (answer === "No") {
+        delete context[confirmingValue + "Confirmed"];
+        delete context.retry;
+        context[confirmingValue + "Wrong"] = true;
+    } else {
+        context.retry = true;
+    }
+}
 
 
 //The Wit actions object - mustin include all functions you may call during the conversation
@@ -106,33 +149,14 @@ var actions = {
                 delete context.missingName;
             }
         } else {
-            //wit frequently does not pick up the business name correctly and logs it as another entity
-            //check if any other entities have been collected and save them as a possible business name
-            //will then check with user if it is correct
-            console.log("No business name found. Checking for other entities collected by Wit.")
-            var possibleBusinessNames = [];
-            for (var entity in entities) {
-                var currentEntityValue = firstEntityValue(entities, entity);
-                possibleBusinessNames.push(currentEntityValue);
-            };
+            console.log("Unable to extract expected business name/local search query entity.")
+            var otherEntityValue = checkOtherEntities(entities);
 
-            if (possibleBusinessNames.length === 1){
-                console.log("One other entity found. Suggesting as possible business name.")
-                context.possibleBusinessName = possibleBusinessNames[0];
+            if (otherEntityValue) {
+                context.possibleBusinessName = otherEntityValue;
             } else {
-                //either no other entities were found, or multiple other entites were found
-                console.log("no other entities found, or multi entities. business name capture failed.")
                 context.missingName = true;
             }
-
-
-        
-        // } else if (possibleBusinessName) {
-        //     console.log("Captured a 'location' instead of BN. Double check.")
-        //     context.possibleBusinessName = possibleBusinessName;
-        // } else {
-        //     console.log("Capture of business name unsuccessful.")
-        //     context.missingName = true;
         }
         return Promise.resolve(context);
     },
@@ -213,7 +237,13 @@ var actions = {
         } else {
             //no location found in input
             console.log("Neither zip number nor location string extracted.")
-            context.locationNotFound = true;
+            var otherEntityValue = checkOtherEntities(entities);
+
+            if (otherEntityValue) {
+                context.possibleCityState = otherEntityValue;
+            } else {
+                context.locationNotFound = true;
+            }
         }
         return Promise.resolve(context);
     },
@@ -238,7 +268,7 @@ var actions = {
     },
     confirmUseCurrentLocation({context, entities}) {
         //process answer to whether user wants to use current location data or not
-        console.log("confirming y/n to use current location")
+        console.log("Confirming y/n answer to use current location")
         var answer = firstEntityValue(entities, "yes_no");
         if (answer === "Yes") {
             delete context.retry;
@@ -277,129 +307,149 @@ var actions = {
         return Promise.resolve(context);
     },
     setBusinessName({context, entities}) {
+        console.log("Resolving possible business name to confirmed business name.")
         context.businessName = context.possibleBusinessName;
         delete context.possibleBusinessName;
         return Promise.resolve(context);
-    }
-};
+    },
+    confirmLocation({context, entities}) {
+        //Confirm collected 'possible' location is correct.
+        console.log("Confirming possible location collected is correct. Y/N")
+        var answer = firstEntityValue(entities, "yes_no");
 
+        confirmYesNo(context, answer, "location");
 
-//****END WIT CODE****//    
+        return Promise.resolve(context);
+    },
+    setLocation({context, entities}) {
+        console.log("Resolving possible location to confirmed location.")
 
-
-
-//Set up webhook for facebook messenger platform
-server.get('/webhook', function (req, res) {
-    if (req.query['hub.mode'] === 'subscribe' &&
-        req.query['hub.verify_token'] === VALIDATION_TOKEN) {
-        console.log("Validating webhook");
-        res.status(200).send(req.query['hub.challenge']);
-    } else {
-        console.error("Failed validation. Make sure the validation tokens match.");
-        res.sendStatus(403);
-    }
-});
+        //take context.possibleBusinessName and parse it, save as city/state...zip?
 
 
 
-server.post('/webhook', function (req, res) {
-    // console.log(util.inspect(req, {showHidden: false, depth: null}));
-    var data = req.body;
+
+        delete context.possibleBusinessName;
+        return Promise.resolve(context);
+    };
 
 
-    // Make sure this is a page subscription
-    if (data.object == 'page') {
-        // Iterate over each entry
-        // There may be multiple if batched
-        data.entry.forEach(function (pageEntry) {
-            var pageID = pageEntry.id;
-            var timeOfEvent = pageEntry.time;
-
-            // Iterate over each messaging event
-            pageEntry.messaging.forEach(function (messagingEvent) {
-                if (messagingEvent.optin) {
-                    //   receivedAuthentication(messagingEvent);
-                    console.log("auth event");
-                } else if (messagingEvent.message) {
-                    //   receivedMessage(messagingEvent);
-                    console.log("got message");
-                    var sender = messagingEvent.sender.id;
-
-                    //*
-                    //got a message from user, so figure out if have message history with user
-                    var sessionId = findOrCreateSession(sender);
-                    var senderText = messagingEvent.message.text;
-                    //retrieve message content
-
-                    //message could be message.text or message.attachment..
-                    if (senderText) {
-                        //forward to wit.ai bot engine
-                        //bot will run all actions till nothing left to do 
-                        wit.runActions(sessionId, senderText, sessions[sessionId].context
-                        ).then(function (context) {
-                            console.log("actions run complete")
-                            sessions[sessionId].context = context;
-                            //now bot is waiting for futher emssages?
-                            //based on session state/business logic, might defcone session here
-                            //if (context['done']){delete sessions[sessionId]}
-                            if (sessions[sessionId].context.endSession) {
-                                //search returned no results, ending session to restart search
-                                console.log("restarting session")
-                                delete sessions[sessionId];
-                            } else if (context.results) {
-                                //code to display results here, possibly buttons to restart search or display more
-                                //for now I am auto-deleting session/search till we have buttons to restart
-                                console.log("restarting session")
-                                delete sessions[sessionId];
-                            }
-
-                        })
-                    }
-
-                    // callSendApi(messageData) was originally called here to send a reply back to user
-                    //an equivalent function (sendFBMessage) is now called within the Wit 'send' action, which will always run during wit.runActions called above
-
-                } else if (messagingEvent.delivery) {
-                    //   receivedDeliveryConfirmation(messagingEvent);
-                    console.log("got messagingEvent delivery");
-                } else if (messagingEvent.postback) {
-                    //   receivedPostback(messagingEvent);
-                    console.log('got postback')
-                } else {
-                    console.log("Webhook received unknown messagingEvent: ", messagingEvent);
-                }
-            });
-        });
-
-        // Assume all went well.
-        //
-        // You must send back a 200, within 20 seconds, to let us know you've 
-        // successfully received the callback. Otherwise, the request will time out.
-        res.sendStatus(200);
-    }
-});
+    //****END WIT CODE****//    
 
 
-function sendFbMessage(id, text) {
-    var body = JSON.stringify({
-        //upt in quotes, dunno if ness
-        recipient: { "id": id },
-        message: { "text": text },
+
+    //Set up webhook for facebook messenger platform
+    server.get('/webhook', function (req, res) {
+        if (req.query['hub.mode'] === 'subscribe' &&
+            req.query['hub.verify_token'] === VALIDATION_TOKEN) {
+            console.log("Validating webhook");
+            res.status(200).send(req.query['hub.challenge']);
+        } else {
+            console.error("Failed validation. Make sure the validation tokens match.");
+            res.sendStatus(403);
+        }
     });
-    //uses fetch instead of request like below
-    var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
-    return fetch('https://graph.facebook.com/me/messages?' + qs, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-    })
-        .then(rsp => rsp.json())
-        .then(json => {
-            if (json.error && json.error.message) {
-                throw new Error(json.error.message);
-            }
-            return json;
+
+
+
+    server.post('/webhook', function (req, res) {
+        // console.log(util.inspect(req, {showHidden: false, depth: null}));
+        var data = req.body;
+
+
+        // Make sure this is a page subscription
+        if (data.object == 'page') {
+            // Iterate over each entry
+            // There may be multiple if batched
+            data.entry.forEach(function (pageEntry) {
+                var pageID = pageEntry.id;
+                var timeOfEvent = pageEntry.time;
+
+                // Iterate over each messaging event
+                pageEntry.messaging.forEach(function (messagingEvent) {
+                    if (messagingEvent.optin) {
+                        //   receivedAuthentication(messagingEvent);
+                        console.log("auth event");
+                    } else if (messagingEvent.message) {
+                        //   receivedMessage(messagingEvent);
+                        console.log("got message");
+                        var sender = messagingEvent.sender.id;
+
+                        //*
+                        //got a message from user, so figure out if have message history with user
+                        var sessionId = findOrCreateSession(sender);
+                        var senderText = messagingEvent.message.text;
+                        //retrieve message content
+
+                        //message could be message.text or message.attachment..
+                        if (senderText) {
+                            //forward to wit.ai bot engine
+                            //bot will run all actions till nothing left to do 
+                            wit.runActions(sessionId, senderText, sessions[sessionId].context
+                            ).then(function (context) {
+                                console.log("actions run complete")
+                                sessions[sessionId].context = context;
+                                //now bot is waiting for futher emssages?
+                                //based on session state/business logic, might defcone session here
+                                //if (context['done']){delete sessions[sessionId]}
+                                if (sessions[sessionId].context.endSession) {
+                                    //search returned no results, ending session to restart search
+                                    console.log("restarting session")
+                                    delete sessions[sessionId];
+                                } else if (context.results) {
+                                    //code to display results here, possibly buttons to restart search or display more
+                                    //for now I am auto-deleting session/search till we have buttons to restart
+                                    console.log("restarting session")
+                                    delete sessions[sessionId];
+                                }
+
+                            })
+                        }
+
+                        // callSendApi(messageData) was originally called here to send a reply back to user
+                        //an equivalent function (sendFBMessage) is now called within the Wit 'send' action, which will always run during wit.runActions called above
+
+                    } else if (messagingEvent.delivery) {
+                        //   receivedDeliveryConfirmation(messagingEvent);
+                        console.log("got messagingEvent delivery");
+                    } else if (messagingEvent.postback) {
+                        //   receivedPostback(messagingEvent);
+                        console.log('got postback')
+                    } else {
+                        console.log("Webhook received unknown messagingEvent: ", messagingEvent);
+                    }
+                });
+            });
+
+            // Assume all went well.
+            //
+            // You must send back a 200, within 20 seconds, to let us know you've 
+            // successfully received the callback. Otherwise, the request will time out.
+            res.sendStatus(200);
+        }
+    });
+
+
+    function sendFbMessage(id, text) {
+        var body = JSON.stringify({
+            //upt in quotes, dunno if ness
+            recipient: { "id": id },
+            message: { "text": text },
         });
+//uses fetch instead of request like below
+var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
+return fetch('https://graph.facebook.com/me/messages?' + qs, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+})
+    .then(rsp => rsp.json())
+    .then(json => {
+        if (json.error && json.error.message) {
+            throw new Error(json.error.message);
+        }
+        return json;
+    });
 };
 
 //code from original just-fb version, similar to above
