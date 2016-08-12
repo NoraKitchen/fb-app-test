@@ -167,9 +167,6 @@ var actions = {
             console.log("Location is zip. Storing zip.")
             context.zip = zip;
             context.displayLocation = zip;
-
-            //at this point, values for business name and zip have been collected
-            //ready to search BBB API
         }
         else if (rawLocation) {
             //the location collected from the user input was not a zip.
@@ -304,7 +301,7 @@ server.get('/webhook', function (req, res) {
 });
 
 
-//
+
 server.post('/webhook', function (req, res) {
     // console.log(util.inspect(req, {showHidden: false, depth: null}));
     var data = req.body;
