@@ -85,6 +85,7 @@ function checkOtherEntities(entities) {
 
     if (possibleValues.length === 1) {
         console.log("One other entity found. Returning as possible intended value.")
+        console.log("poss value" + possibleValues[0]);
         // context.possibleBusinessName = possibleBusinessNames[0];
         return possibleValues[0];
     } else {
@@ -100,22 +101,25 @@ function confirmYesNo(context, answer, confirmingValue) {
     //This function will help it respond to yes/no input more reliably
     //It is specifically for checking/confirming when Wit has probably not picked up/categorized user input correctly, and we want to double check we want to double check with the user
     if (answer === "Yes") {
-        delete context[confirmingValue + "Wrong"];
+        delete context[confirmingValue + "WRONG"];
         delete context.retry;
-        context[confirmingValue + "Confirmed"] = true;
+        context[confirmingValue + "CONFIRMED"] = true;
     } else if (answer === "No") {
-        delete context[confirmingValue + "Confirmed"];
+        delete context[confirmingValue + "CONFIRMED"];
         delete context.retry;
-        context[confirmingValue + "Wrong"] = true;
+        console.log("test log context for deleted possible")
+        console.log(context);
+        delete context["POSSIBLE" + confirmingValue];
+        context[confirmingValue + "WRONG"] = true;
     } else {
         context.retry = true;
     }
 }
 
-function twoPartAddy(locationString) {
+function checkTwoPartAddy(locationString) {
     //Ensure city AND state entered by checking if location string contains a space or comma
     //If user enters a city with a space in the name ("san francisco") but no state, it will unfortuantely pass this test, but will likely ultimately still fail the parse further on, which is good
-    if (rawLocation.indexOf(" ") >= 0 || rawLocation.indexOf(",") >= 0) {
+    if (locationString.indexOf(" ") >= 0 || locationString.indexOf(",") >= 0) {
         return true;
     } else {
         return false;
@@ -129,7 +133,7 @@ function parseAddy(locationString) {
     //The address parser requires a street address to work reliably, hence the placeholder.
     var placeholder = "111 Placeholder "
 
-    var parsedLocation = parser.parseLocation(placeholder + rawLocation);
+    var parsedLocation = parser.parseLocation(placeholder + locationString);
     return parsedLocation;
 }
 
@@ -186,10 +190,10 @@ var actions = {
         //the structure of entities is a little odd. firstEntityValue digs into it and pulls out the actual text value we want 
         console.log(entities);
 
-        if (context.possibleBusinessName) {
+        if (context.POSSIBLEBUSINESSNAME) {
             console.log("Resolving possible business name to confirmed business name.")
-            var businessName = context.possibleBusinessName;
-            delete context.possibleBusinessName;
+            var businessName = context.POSSIBLEBUSINESSNAME;
+            delete context.POSSIBLEBUSINESSNAME;
         } else {
             var businessName = firstEntityValue(entities, "local_search_query");
         }
@@ -205,7 +209,7 @@ var actions = {
             var otherEntityValue = checkOtherEntities(entities);
 
             if (otherEntityValue) {
-                context.possibleBusinessName = otherEntityValue;
+                context.POSSIBLEBUSINESSNAME = otherEntityValue;
             } else {
                 context.missingName = true;
             }
@@ -235,10 +239,10 @@ var actions = {
         console.log("Location string accepted.")
         console.log(entities);  //for testing
 
-        if (context.possibleCityState) {
-            console.log("Resolving possible city/state to confirmed location.")
-            var rawLocation = context.possibleCityState;
-            delete context.possibleCityState;
+        if (context.POSSIBLELOCATION) {
+            console.log("Resolving possible location to confirmed location.")
+            var rawLocation = context.POSSIBLELOCATION;
+            delete context.POSSIBLELOCATION;
         } else {
             var zip = firstEntityValue(entities, "number")
             var rawLocation = firstEntityValue(entities, "location")
@@ -250,14 +254,18 @@ var actions = {
             var otherEntityValue = checkOtherEntities(entities);
 
             if (otherEntityValue) {
-                context.possibleCityState = otherEntityValue;
+                console.log("OTHER ENTITY SET AS POSSIBLE, SHOULD GO POSS ROUTE.")
+                context.POSSIBLELOCATION = otherEntityValue;
+                delete context.locationNotFound;
             } else {
                 context.locationNotFound = true;
             }
+
         } else if (zip) {
             console.log("Location is zip. Storing zip.")
             context.zip = zip;
             context.displayLocation = zip;
+            delete context.locationNotFound;
         } else if (rawLocation) {
             //The location collected from the user input was not a zip.
             //Likely it is a city/state combo wit failed to parse and took as a whole ("Boise, Idaho 83709", "Newport, OR", etc.)
@@ -324,17 +332,8 @@ var actions = {
         console.log("confirming y/n business name collected is correct")
         var answer = firstEntityValue(entities, "yes_no");
 
-        if (answer === "Yes") {
-            delete context.businessNameWrong;
-            delete context.retry;
-            context.businessNameConfirmed = true;
-        } else if (answer === "No") {
-            delete context.businessNameConfirmed;
-            delete context.retry;
-            context.businessNameWrong = true;
-        } else {
-            context.retry = true;
-        }
+        confirmYesNo(context, answer, "BUSINESSNAME");
+
         return Promise.resolve(context);
     },
     confirmLocation({context, entities}) {
@@ -342,7 +341,7 @@ var actions = {
         console.log("Confirming possible location collected is correct. Y/N")
         var answer = firstEntityValue(entities, "yes_no");
 
-        confirmYesNo(context, answer, "location");
+        confirmYesNo(context, answer, "LOCATION");
 
         return Promise.resolve(context);
     },
