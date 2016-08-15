@@ -112,6 +112,51 @@ function confirmYesNo(context, answer, confirmingValue) {
     }
 }
 
+function twoPartAddy(locationString) {
+    //Ensure city AND state entered by checking if location string contains a space or comma
+    //If user enters a city with a space in the name ("san francisco") but no state, it will unfortuantely pass this test, but will likely ultimately still fail the parse further on, which is good
+    if (rawLocation.indexOf(" ") >= 0 || rawLocation.indexOf(",") >= 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function parseAddy(locationString) {
+    //Takes in a location string ("Boise, ID", "Nampa ID 83709" and divides into city, state, zip.)
+    console.log("Parsing location into city and state, or zip if applicable.")
+
+    //The address parser requires a street address to work reliably, hence the placeholder.
+    var placeholder = "111 Placeholder "
+
+    var parsedLocation = parser.parseLocation(placeholder + rawLocation);
+    return parsedLocation;
+}
+
+function updateLocationContext(context, parsedAddy) {
+    //Updates the context with the parsed address object.
+    //If address does not contain the necessary parts, tell with the location was not found.
+    if (!parsedAddy.city && !parsedAddy.state && !parsedAddy.zip) {
+        console.log("Address parse returned nothing.")
+        context.locationNotFound = true;
+    } else if (parsedAddy.zip) {
+        //Zip is parsed more reliably so default to using that if present.
+        console.log("Zip found.")
+        context.zip = parsedAddy.zip;
+        context.displayLocation = parsedAddy.zip; //Location stored for dispay in chatbox
+        delete context.locationNotFound;
+    } else if (parsedAddy.city && parsedAddy.state) {
+        console.log("City and state found.")
+        context.city = parsedAddy.city;
+        context.state = parsedAddy.state;
+        context.displayLocation = parsedAddy.city + ", " + parsedAddy.state;
+        delete context.locationNotFound;
+    } else {
+        //Only a city or only a state was found. don't bother accepting the information.
+        context.locationNotFound = true;
+    }
+}
+
 
 //The Wit actions object - mustin include all functions you may call during the conversation
 //as well as the 'send' function that says what happens whenever Wit formulates a reply and sends it back
@@ -140,7 +185,14 @@ var actions = {
     collectBusinessName({context, entities}) {
         //the structure of entities is a little odd. firstEntityValue digs into it and pulls out the actual text value we want 
         console.log(entities);
-        var businessName = firstEntityValue(entities, "local_search_query");
+
+        if (context.possibleBusinessName) {
+            console.log("Resolving possible business name to confirmed business name.")
+            var businessName = context.possibleBusinessName;
+            delete context.possibleBusinessName;
+        } else {
+            var businessName = firstEntityValue(entities, "local_search_query");
+        }
 
         if (businessName) {
             context.businessName = businessName;
@@ -183,59 +235,17 @@ var actions = {
         console.log("Location string accepted.")
         console.log(entities);  //for testing
 
-        var zip = firstEntityValue(entities, "number")
-        var rawLocation = firstEntityValue(entities, "location")
-        console.log("Location recieved: " + rawLocation + ", checking input type.")
-        //check if location recieved was a zip
-        if (zip) {
-            console.log("Location is zip. Storing zip.")
-            context.zip = zip;
-            context.displayLocation = zip;
-        }
-        else if (rawLocation) {
-            //the location collected from the user input was not a zip.
-            //likely it is a city/state combo wit failed to parse and took as a whole ("Boise, Idaho 83709", "Newport, OR", etc.)
-
-            //check here the string contains a space or comma--ensure city AND state entered
-            //if user enters a city with a space in the name ("san francisco"), it will unfortuantely pass this test, but will likely ultimately still fail the parse, which is good
-            if (rawLocation.indexOf(" ") >= 0 || rawLocation.indexOf(",") >= 0) {
-                console.log("Parsing location into city and state.")
-                //the address parser requires a street address to work reliably, hence the placeholder
-                var placeholder = "111 Placeholder "
-                var parsedLocation = parser.parseLocation(placeholder + rawLocation);
-                console.log(parsedLocation);
-
-                var city = parsedLocation.city;
-                var state = parsedLocation.state;
-                var zip = parsedLocation.zip; //zip may end up here if user listed city/state with it
-
-
-                if (!city && !state && !zip) {
-                    console.log("Address parse returned nothing.")
-                    context.locationNotFound = true;
-                } else if (zip) {
-                    //zip is parsed more reliably so default to using that if present
-                    console.log("Zip found.")
-                    context.zip = zip;
-                    context.displayLocation = zip; //location stored for dispay in chatbox
-                    delete context.locationNotFound;
-                } else if (city && state) {
-                    console.log("City and state found.")
-                    context.city = city;
-                    context.state = state;
-                    context.displayLocation = city + ", " + state;
-                    delete context.locationNotFound;
-                } else {
-                    //only a city or only a state was found. don't bother accepting the information.
-                    context.locationNotFound = true;
-                }
-            } else {
-                //location did not contain a space or comma, so is likely incomplete
-                console.log("Location incomplete.")
-                context.locationNotFound = true;
-            }
+        if (context.possibleCityState) {
+            console.log("Resolving possible city/state to confirmed location.")
+            var rawLocation = context.possibleCityState;
+            delete context.possibleCityState;
         } else {
-            //no location found in input
+            var zip = firstEntityValue(entities, "number")
+            var rawLocation = firstEntityValue(entities, "location")
+        }
+
+        if (!zip && !rawLocation) {
+            //No location found in input
             console.log("Neither zip number nor location string extracted.")
             var otherEntityValue = checkOtherEntities(entities);
 
@@ -244,7 +254,28 @@ var actions = {
             } else {
                 context.locationNotFound = true;
             }
+        } else if (zip) {
+            console.log("Location is zip. Storing zip.")
+            context.zip = zip;
+            context.displayLocation = zip;
+        } else if (rawLocation) {
+            //The location collected from the user input was not a zip.
+            //Likely it is a city/state combo wit failed to parse and took as a whole ("Boise, Idaho 83709", "Newport, OR", etc.)
+            //Check if the address is the required two part address, if so parse it.
+            //If the address contains the necessary parts (zip or city and state), update the context.
+
+            var twoPartAddy = checkTwoPartAddy(rawLocation);
+
+            if (twoPartAddy) {
+                var parsedAddy = parseAddy(rawLocation);
+                updateLocationContext(context, parsedAddy);
+            } else {
+                //location did not contain a space or comma, so is likely incomplete
+                console.log("Location incomplete.")
+                context.locationNotFound = true;
+            }
         }
+
         return Promise.resolve(context);
     },
     executeSearch({context, entities}) {
@@ -306,12 +337,6 @@ var actions = {
         }
         return Promise.resolve(context);
     },
-    setBusinessName({context, entities}) {
-        console.log("Resolving possible business name to confirmed business name.")
-        context.businessName = context.possibleBusinessName;
-        delete context.possibleBusinessName;
-        return Promise.resolve(context);
-    },
     confirmLocation({context, entities}) {
         //Confirm collected 'possible' location is correct.
         console.log("Confirming possible location collected is correct. Y/N")
@@ -321,135 +346,125 @@ var actions = {
 
         return Promise.resolve(context);
     },
-    setLocation({context, entities}) {
-        console.log("Resolving possible location to confirmed location.")
-
-        //take context.possibleBusinessName and parse it, save as city/state...zip?
+};
 
 
-
-
-        delete context.possibleBusinessName;
-        return Promise.resolve(context);
-    };
-
-
-    //****END WIT CODE****//    
+//****END WIT CODE****//    
 
 
 
-    //Set up webhook for facebook messenger platform
-    server.get('/webhook', function (req, res) {
-        if (req.query['hub.mode'] === 'subscribe' &&
-            req.query['hub.verify_token'] === VALIDATION_TOKEN) {
-            console.log("Validating webhook");
-            res.status(200).send(req.query['hub.challenge']);
-        } else {
-            console.error("Failed validation. Make sure the validation tokens match.");
-            res.sendStatus(403);
-        }
-    });
+//Set up webhook for facebook messenger platform
+server.get('/webhook', function (req, res) {
+    if (req.query['hub.mode'] === 'subscribe' &&
+        req.query['hub.verify_token'] === VALIDATION_TOKEN) {
+        console.log("Validating webhook");
+        res.status(200).send(req.query['hub.challenge']);
+    } else {
+        console.error("Failed validation. Make sure the validation tokens match.");
+        res.sendStatus(403);
+    }
+});
 
 
 
-    server.post('/webhook', function (req, res) {
-        // console.log(util.inspect(req, {showHidden: false, depth: null}));
-        var data = req.body;
+server.post('/webhook', function (req, res) {
+    // console.log(util.inspect(req, {showHidden: false, depth: null}));
+    var data = req.body;
 
 
-        // Make sure this is a page subscription
-        if (data.object == 'page') {
-            // Iterate over each entry
-            // There may be multiple if batched
-            data.entry.forEach(function (pageEntry) {
-                var pageID = pageEntry.id;
-                var timeOfEvent = pageEntry.time;
+    // Make sure this is a page subscription
+    if (data.object == 'page') {
+        // Iterate over each entry
+        // There may be multiple if batched
+        data.entry.forEach(function (pageEntry) {
+            var pageID = pageEntry.id;
+            var timeOfEvent = pageEntry.time;
 
-                // Iterate over each messaging event
-                pageEntry.messaging.forEach(function (messagingEvent) {
-                    if (messagingEvent.optin) {
-                        //   receivedAuthentication(messagingEvent);
-                        console.log("auth event");
-                    } else if (messagingEvent.message) {
-                        //   receivedMessage(messagingEvent);
-                        console.log("got message");
-                        var sender = messagingEvent.sender.id;
+            // Iterate over each messaging event
+            pageEntry.messaging.forEach(function (messagingEvent) {
+                if (messagingEvent.optin) {
+                    //   receivedAuthentication(messagingEvent);
+                    console.log("auth event");
+                } else if (messagingEvent.message) {
+                    //   receivedMessage(messagingEvent);
+                    console.log("got message");
+                    var sender = messagingEvent.sender.id;
 
-                        //*
-                        //got a message from user, so figure out if have message history with user
-                        var sessionId = findOrCreateSession(sender);
-                        var senderText = messagingEvent.message.text;
-                        //retrieve message content
+                    //*
+                    //got a message from user, so figure out if have message history with user
+                    var sessionId = findOrCreateSession(sender);
+                    var senderText = messagingEvent.message.text;
+                    //retrieve message content
 
-                        //message could be message.text or message.attachment..
-                        if (senderText) {
-                            //forward to wit.ai bot engine
-                            //bot will run all actions till nothing left to do 
-                            wit.runActions(sessionId, senderText, sessions[sessionId].context
-                            ).then(function (context) {
-                                console.log("actions run complete")
-                                sessions[sessionId].context = context;
-                                //now bot is waiting for futher emssages?
-                                //based on session state/business logic, might defcone session here
-                                //if (context['done']){delete sessions[sessionId]}
-                                if (sessions[sessionId].context.endSession) {
-                                    //search returned no results, ending session to restart search
-                                    console.log("restarting session")
-                                    delete sessions[sessionId];
-                                } else if (context.results) {
-                                    //code to display results here, possibly buttons to restart search or display more
-                                    //for now I am auto-deleting session/search till we have buttons to restart
-                                    console.log("restarting session")
-                                    delete sessions[sessionId];
-                                }
+                    //message could be message.text or message.attachment..
+                    if (senderText) {
+                        //forward to wit.ai bot engine
+                        //bot will run all actions till nothing left to do 
+                        wit.runActions(sessionId, senderText, sessions[sessionId].context
+                        ).then(function (context) {
+                            console.log("actions run complete")
+                            sessions[sessionId].context = context;
+                            //now bot is waiting for futher emssages?
+                            //based on session state/business logic, might defcone session here
+                            //if (context['done']){delete sessions[sessionId]}
+                            if (sessions[sessionId].context.endSession) {
+                                //search returned no results, ending session to restart search
+                                console.log("restarting session")
+                                delete sessions[sessionId];
+                            } else if (context.results) {
+                                //code to display results here, possibly buttons to restart search or display more
+                                //for now I am auto-deleting session/search till we have buttons to restart
+                                console.log("restarting session")
+                                delete sessions[sessionId];
+                            }
 
-                            })
-                        }
-
-                        // callSendApi(messageData) was originally called here to send a reply back to user
-                        //an equivalent function (sendFBMessage) is now called within the Wit 'send' action, which will always run during wit.runActions called above
-
-                    } else if (messagingEvent.delivery) {
-                        //   receivedDeliveryConfirmation(messagingEvent);
-                        console.log("got messagingEvent delivery");
-                    } else if (messagingEvent.postback) {
-                        //   receivedPostback(messagingEvent);
-                        console.log('got postback')
-                    } else {
-                        console.log("Webhook received unknown messagingEvent: ", messagingEvent);
+                        })
                     }
-                });
+
+                    // callSendApi(messageData) was originally called here to send a reply back to user
+                    //an equivalent function (sendFBMessage) is now called within the Wit 'send' action, which will always run during wit.runActions called above
+
+                } else if (messagingEvent.delivery) {
+                    //   receivedDeliveryConfirmation(messagingEvent);
+                    console.log("got messagingEvent delivery");
+                } else if (messagingEvent.postback) {
+                    //   receivedPostback(messagingEvent);
+                    console.log('got postback')
+                } else {
+                    console.log("Webhook received unknown messagingEvent: ", messagingEvent);
+                }
             });
-
-            // Assume all went well.
-            //
-            // You must send back a 200, within 20 seconds, to let us know you've 
-            // successfully received the callback. Otherwise, the request will time out.
-            res.sendStatus(200);
-        }
-    });
-
-
-    function sendFbMessage(id, text) {
-        var body = JSON.stringify({
-            //upt in quotes, dunno if ness
-            recipient: { "id": id },
-            message: { "text": text },
         });
-//uses fetch instead of request like below
-var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
-return fetch('https://graph.facebook.com/me/messages?' + qs, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-})
-    .then(rsp => rsp.json())
-    .then(json => {
-        if (json.error && json.error.message) {
-            throw new Error(json.error.message);
-        }
-        return json;
+
+        // Assume all went well.
+        //
+        // You must send back a 200, within 20 seconds, to let us know you've 
+        // successfully received the callback. Otherwise, the request will time out.
+        res.sendStatus(200);
+    }
+});
+
+
+function sendFbMessage(id, text) {
+    var body = JSON.stringify({
+        //upt in quotes, dunno if ness
+        recipient: { "id": id },
+        message: { "text": text },
     });
+    //uses fetch instead of request like below
+    var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
+    return fetch('https://graph.facebook.com/me/messages?' + qs, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+    })
+        .then(rsp => rsp.json())
+        .then(json => {
+            if (json.error && json.error.message) {
+                throw new Error(json.error.message);
+            }
+            return json;
+        });
 };
 
 //code from original just-fb version, similar to above
