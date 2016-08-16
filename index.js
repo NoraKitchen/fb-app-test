@@ -4,12 +4,14 @@ var request = require('request');
 var fetch = require('node-fetch');
 var config = require('config');
 var parser = require('parse-address')
+// var bbb = require('./bbbapi');
 var port = process.env.PORT || 8080;
 
 
 var server = express();
 server.use(bodyParser.json());
 server.listen(port, function () { console.log("server running on port " + port) });
+
 
 // server.get('/test', function(req, res){
 //     res.sendFile(__dirname + "/public/index.html");
@@ -21,6 +23,93 @@ server.listen(port, function () { console.log("server running on port " + port) 
 var VALIDATION_TOKEN = config.get("validationToken");
 var PAGE_ACCESS_TOKEN = config.get("pageAccessToken");
 var WIT_TOKEN = config.get("witToken");
+
+// SEARCHING OBJECT CONSTUCTOR
+function SearchPoint() {
+  this.name = false;
+  this.category = false;
+  this.city = false;
+  this.state = false;
+  this.zip = false;
+//   this.userId = false;
+}
+
+
+// BBB api token 
+const API_TOKEN = config.get('token');
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// BBB.org API
+function makeLink(query) {
+    var reqLink = '';
+    if (query.name) reqLink += '&PrimaryOrganizationName=' + query.name;
+    if (query.city) reqLink += '&City=' + query.city;
+    if (query.state) reqLink += '&StateProvince=' + query.state;
+    if (query.category) reqLink += "&PrimaryCategory=" + query.category;
+    if (query.zip) reqLink += '&PostalCode=' + query.zip;
+
+    console.log(reqLink)
+
+    findBusiness(reqLink, function (somedata) {
+        if (somedata == "NoData") {
+            return false;
+            //   sendTextMessage(query.userId,"Sorry no data for this request")
+        } else {
+            return somedata;
+            //   showListOfBusiness(query.userId, somedata);
+        }
+
+    });
+};
+
+function findBusiness(reqLink, callback) {
+
+    var options = {
+        host: 'api.bbb.org',
+        port: 443,
+        path: '/api/orgs/search?PageSize=10' + reqLink,
+        method: 'GET',
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.13) Gecko/20080311 Firefox/2.0.0.13',
+            'Authorization': API_TOKEN
+        }
+    };
+
+    var request = https.request(options, function (response) {
+        console.log('Status: ' + response.statusCode);
+        response.setEncoding('utf8');
+        var body = "";
+        response.on('data', function (chunk) { body += chunk });
+
+        response.on("end", function () {
+
+            console.log(body);
+            //TotalResults: 0, SearchResults: [];
+
+            var nodes = JSON.parse(body);
+
+            //somehow seems to make it here, can log
+            //but to nothing below
+            //also even if made it to below, no search results
+
+            if (nodes.TotalResults) {
+                console.log("Total Results: " + nodes.TotalResults);
+            }
+            if (nodes.SearchResults) {
+                callback(nodes.SearchResults);
+            } else {
+                console.log("got no data on response")
+                callback("NoData");
+            }
+        });
+    });
+
+    request.on('error', function (error) {
+        console.log('problem with request: ' + error.message);
+    });
+    request.end();
+};
+
 
 
 
@@ -222,8 +311,8 @@ var actions = {
         //when retrieved, it would add the location to context
 
         //pretending these values were returned for testing purposes
-        context.city = "<detectedCity>"; //for testing
-        context.state = "<detectedState>"; //for testing
+        // context.city = "<detectedCity>"; //for testing
+        // context.state = "<detectedState>"; //for testing
 
         if (context.city && context.state) {
             console.log("City and state identified.")
@@ -287,19 +376,31 @@ var actions = {
         return Promise.resolve(context);
     },
     executeSearch({context, entities}) {
-        //pull the zip or city and state off the context
-        //and run a search with the BBB API
         console.log("Searching BBB API.")
 
-        var searchResults = true; //just here for testing, assume we got some results
+        var query = new SearchPoint;
+        query.name = context.businessName;
+        query.category = context.category;
+        query.city = context.city;
+        query.state = context.state;
+        query.zip = context.zip;
 
+        // var searchResults = bbb.makeLink(query);
+
+         var searchResults = "<Search Results>"
+
+        // bbb.makeLink(query, function(searchResults){
+        // console.log("Search results sent to wit: "+ searchResults)
         if (searchResults) {
             delete context.noMatches;
-            context.results = "<search results>"; //the real search results go here
+            context.results = serachResults; //the real search results go here
         } else {
             context.noMatches = true;
         }
         return Promise.resolve(context);
+
+        // });
+
     },
     restartSession({context}) {
         context.endSession = true;
@@ -309,6 +410,7 @@ var actions = {
         //process answer to whether user wants to use current location data or not
         console.log("Confirming y/n answer to use current location")
         var answer = firstEntityValue(entities, "yes_no");
+        console.log("Answer: " + answer)
         if (answer === "Yes") {
             delete context.retry;
             delete context.doNotUseCL;
