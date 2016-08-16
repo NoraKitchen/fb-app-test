@@ -4,7 +4,8 @@ var request = require('request');
 var config = require('config');
 var parser = require('parse-address')
 
-var witActions = require('./wit_app/wit-actions')
+// var witActions = require('./wit_app/wit-actions')
+// require("./wit_app/wit-helpers");
 var bbb = require('./bbbapi');
 
 
@@ -25,7 +26,7 @@ server.use(bodyParser.json());
 server.listen(port, function () { console.log("server running on port " + port) });
 
 var VALIDATION_TOKEN = config.get("validationToken");
-// var PAGE_ACCESS_TOKEN = config.get("pageAccessToken");
+var PAGE_ACCESS_TOKEN = config.get("pageAccessToken");
 var WIT_TOKEN = config.get("witToken");
 
 // SEARCHING OBJECT CONSTUCTOR FROM SERGEY
@@ -60,27 +61,27 @@ function findOrCreateSession(fbid) {
     return sessionId;
 };
 
-// function sendFbMessage(id, text) {
-//     var body = JSON.stringify({
-//         //upt in quotes, dunno if ness
-//         recipient: { "id": id },
-//         message: { "text": text },
-//     });
-//     //uses fetch instead of request like below
-//     var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
-//     return fetch('https://graph.facebook.com/me/messages?' + qs, {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body,
-//     })
-//         .then(rsp => rsp.json())
-//         .then(json => {
-//             if (json.error && json.error.message) {
-//                 throw new Error(json.error.message);
-//             }
-//             return json;
-//         });
-// };
+function sendFbMessage(id, text) {
+    var body = JSON.stringify({
+        //upt in quotes, dunno if ness
+        recipient: { "id": id },
+        message: { "text": text },
+    });
+    //uses fetch instead of request like below
+    var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
+    return fetch('https://graph.facebook.com/me/messages?' + qs, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+    })
+        .then(rsp => rsp.json())
+        .then(json => {
+            if (json.error && json.error.message) {
+                throw new Error(json.error.message);
+            }
+            return json;
+        });
+};
 
 //code from original just-fb version, similar to above
 // function callSendApi(messageData) {
@@ -105,295 +106,295 @@ function findOrCreateSession(fbid) {
 //     });
 // }
 
-// function firstEntityValue(entities, entity) {
-//     //Attempts to pull entity values/variables for use in functions/actions below
-//     var val = entities && entities[entity] &&
-//         Array.isArray(entities[entity]) &&
-//         entities[entity].length > 0 &&
-//         entities[entity][0].value
-//         ;
-//     if (!val) {
-//         return null;
-//     }
-//     return typeof val === 'object' ? val.value : val;
-// };
+function firstEntityValue(entities, entity) {
+    //Attempts to pull entity values/variables for use in functions/actions below
+    var val = entities && entities[entity] &&
+        Array.isArray(entities[entity]) &&
+        entities[entity].length > 0 &&
+        entities[entity][0].value
+        ;
+    if (!val) {
+        return null;
+    }
+    return typeof val === 'object' ? val.value : val;
+};
 
-// function checkOtherEntities(entities) {
-//     //Wit frequently categorizes entities incorrectly (e.g. files a business name under 'location')
-//     //This will check all other entities collected from the user input and store their values
-//     //If one single other entity/value is found, it is likey what the user intended.
-//     //The value is returned so we can check with the user what they meant by it.
+function checkOtherEntities(entities) {
+    //Wit frequently categorizes entities incorrectly (e.g. files a business name under 'location')
+    //This will check all other entities collected from the user input and store their values
+    //If one single other entity/value is found, it is likey what the user intended.
+    //The value is returned so we can check with the user what they meant by it.
 
-//     console.log("Expected entity not found in user input. Checking other entities for possible values.")
-//     var possibleValues = [];
+    console.log("Expected entity not found in user input. Checking other entities for possible values.")
+    var possibleValues = [];
 
-//     for (var entity in entities) {
-//         var currentEntityValue = firstEntityValue(entities, entity);
-//         possibleValues.push(currentEntityValue);
-//     };
+    for (var entity in entities) {
+        var currentEntityValue = firstEntityValue(entities, entity);
+        possibleValues.push(currentEntityValue);
+    };
 
-//     if (possibleValues.length === 1) {
-//         console.log("One other entity found. Returning as possible intended value.")
-//         console.log("poss value" + possibleValues[0]);
-//         // context.possibleBusinessName = possibleBusinessNames[0];
-//         return possibleValues[0];
-//     } else {
-//         //Either no other entities were found, or multiple other entites were found, making it difficult to determine what the user meant.
-//         console.log("No other entities found, or multi entities. Target entity capture failed.")
-//         return false;
-//         // context.missingName = true;
-//     }
-// }
+    if (possibleValues.length === 1) {
+        console.log("One other entity found. Returning as possible intended value.")
+        console.log("poss value" + possibleValues[0]);
+        // context.possibleBusinessName = possibleBusinessNames[0];
+        return possibleValues[0];
+    } else {
+        //Either no other entities were found, or multiple other entites were found, making it difficult to determine what the user meant.
+        console.log("No other entities found, or multi entities. Target entity capture failed.")
+        return false;
+        // context.missingName = true;
+    }
+}
 
-// function confirmYesNo(context, answer, confirmingValue) {
-//     //While in theory Wit should be able to react to yes/no answers from user, I could not get it to do so accurately
-//     //This function will help it respond to yes/no input more reliably
-//     //It is specifically for checking/confirming when Wit has probably not picked up/categorized user input correctly, and we want to double check we want to double check with the user
-//     if (answer === "Yes") {
-//         delete context[confirmingValue + "WRONG"];
-//         delete context.retry;
-//         context[confirmingValue + "CONFIRMED"] = true;
-//     } else if (answer === "No") {
-//         delete context[confirmingValue + "CONFIRMED"];
-//         delete context.retry;
-//         console.log("test log context for deleted possible")
-//         console.log(context);
-//         delete context["POSSIBLE" + confirmingValue];
-//         context[confirmingValue + "WRONG"] = true;
-//     } else {
-//         context.retry = true;
-//     }
-// }
+function confirmYesNo(context, answer, confirmingValue) {
+    //While in theory Wit should be able to react to yes/no answers from user, I could not get it to do so accurately
+    //This function will help it respond to yes/no input more reliably
+    //It is specifically for checking/confirming when Wit has probably not picked up/categorized user input correctly, and we want to double check we want to double check with the user
+    if (answer === "Yes") {
+        delete context[confirmingValue + "WRONG"];
+        delete context.retry;
+        context[confirmingValue + "CONFIRMED"] = true;
+    } else if (answer === "No") {
+        delete context[confirmingValue + "CONFIRMED"];
+        delete context.retry;
+        console.log("test log context for deleted possible")
+        console.log(context);
+        delete context["POSSIBLE" + confirmingValue];
+        context[confirmingValue + "WRONG"] = true;
+    } else {
+        context.retry = true;
+    }
+}
 
-// function checkTwoPartAddy(locationString) {
-//     //Ensure city AND state entered by checking if location string contains a space or comma
-//     //If user enters a city with a space in the name ("san francisco") but no state, it will unfortuantely pass this test, but will likely ultimately still fail the parse further on, which is good
-//     if (locationString.indexOf(" ") >= 0 || locationString.indexOf(",") >= 0) {
-//         return true;
-//     } else {
-//         return false;
-//     }
-// }
+function checkTwoPartAddy(locationString) {
+    //Ensure city AND state entered by checking if location string contains a space or comma
+    //If user enters a city with a space in the name ("san francisco") but no state, it will unfortuantely pass this test, but will likely ultimately still fail the parse further on, which is good
+    if (locationString.indexOf(" ") >= 0 || locationString.indexOf(",") >= 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
-// function parseAddy(locationString) {
-//     //Takes in a location string ("Boise, ID", "Nampa ID 83709" and divides into city, state, zip.)
-//     console.log("Parsing location into city and state, or zip if applicable.")
+function parseAddy(locationString) {
+    //Takes in a location string ("Boise, ID", "Nampa ID 83709" and divides into city, state, zip.)
+    console.log("Parsing location into city and state, or zip if applicable.")
 
-//     //The address parser requires a street address to work reliably, hence the placeholder.
-//     var placeholder = "111 Placeholder "
+    //The address parser requires a street address to work reliably, hence the placeholder.
+    var placeholder = "111 Placeholder "
 
-//     var parsedLocation = parser.parseLocation(placeholder + locationString);
-//     return parsedLocation;
-// }
+    var parsedLocation = parser.parseLocation(placeholder + locationString);
+    return parsedLocation;
+}
 
-// function updateLocationContext(context, parsedAddy) {
-//     //Updates the context with the parsed address object.
-//     //If address does not contain the necessary parts, tell with the location was not found.
-//     if (!parsedAddy.city && !parsedAddy.state && !parsedAddy.zip) {
-//         console.log("Address parse returned nothing.")
-//         context.locationNotFound = true;
-//     } else if (parsedAddy.zip) {
-//         //Zip is parsed more reliably so default to using that if present.
-//         console.log("Zip found.")
-//         context.zip = parsedAddy.zip;
-//         context.displayLocation = parsedAddy.zip; //Location stored for dispay in chatbox
-//         delete context.locationNotFound;
-//     } else if (parsedAddy.city && parsedAddy.state) {
-//         console.log("City and state found.")
-//         context.city = parsedAddy.city;
-//         context.state = parsedAddy.state;
-//         context.displayLocation = parsedAddy.city + ", " + parsedAddy.state;
-//         delete context.locationNotFound;
-//     } else {
-//         //Only a city or only a state was found. don't bother accepting the information.
-//         context.locationNotFound = true;
-//     }
-// }
+function updateLocationContext(context, parsedAddy) {
+    //Updates the context with the parsed address object.
+    //If address does not contain the necessary parts, tell with the location was not found.
+    if (!parsedAddy.city && !parsedAddy.state && !parsedAddy.zip) {
+        console.log("Address parse returned nothing.")
+        context.locationNotFound = true;
+    } else if (parsedAddy.zip) {
+        //Zip is parsed more reliably so default to using that if present.
+        console.log("Zip found.")
+        context.zip = parsedAddy.zip;
+        context.displayLocation = parsedAddy.zip; //Location stored for dispay in chatbox
+        delete context.locationNotFound;
+    } else if (parsedAddy.city && parsedAddy.state) {
+        console.log("City and state found.")
+        context.city = parsedAddy.city;
+        context.state = parsedAddy.state;
+        context.displayLocation = parsedAddy.city + ", " + parsedAddy.state;
+        delete context.locationNotFound;
+    } else {
+        //Only a city or only a state was found. don't bother accepting the information.
+        context.locationNotFound = true;
+    }
+}
 
 
-// // //The Wit actions object must include all functions you want to be able to directly call during the conversation
-// // //It also must include the 'send' function that says what happens every time Wit formulates a reply and sends back a response
-// // var actions = {
-// //     send(request, response) {
-// //         //in fb exaple had diff (args), think will work this way...
+//The Wit actions object must include all functions you want to be able to directly call during the conversation
+//It also must include the 'send' function that says what happens every time Wit formulates a reply and sends back a response
+var actions = {
+    send(request, response) {
+        //in fb exaple had diff (args), think will work this way...
 
-// //         // const {sessionId, context, entities} = request;
-// //         // const {text, quickreplies} = response;
+        // const {sessionId, context, entities} = request;
+        // const {text, quickreplies} = response;
 
-// //         //retrieve user whose session belongs to
-// //         var recipientId = sessions[request.sessionId].fbid;
-// //         if (recipientId) {
-// //             return sendFbMessage(recipientId, response.text)
-// //                 .then(function () {
-// //                     return null;
-// //                 }) //.catch here 
-// //             // return new Promise(function (resolve, reject) {
-// //             //     console.log('user said...', request.text);
-// //             //     console.log('sending...', JSON.stringify(response));
-// //             //     return resolve();
-// //             // });
-// //         }
-//     },
-//     collectBusinessName({context, entities}) {
-//         if (context.POSSIBLEBUSINESSNAME) {
-//             //If a Wit has stored and confirmed a possible business name, default to using this
-//             //May refactor 'resolve possible business/location code to one function later
-//             var businessName = context.POSSIBLEBUSINESSNAME;
-//             delete context.POSSIBLEBUSINESSNAME;
-//         } else {
-//             var businessName = firstEntityValue(entities, "local_search_query");
-//         }
+        //retrieve user whose session belongs to
+        var recipientId = sessions[request.sessionId].fbid;
+        if (recipientId) {
+            return sendFbMessage(recipientId, response.text)
+                .then(function () {
+                    return null;
+                }) //.catch here 
+            // return new Promise(function (resolve, reject) {
+            //     console.log('user said...', request.text);
+            //     console.log('sending...', JSON.stringify(response));
+            //     return resolve();
+            // });
+        }
+    },
+    collectBusinessName({context, entities}) {
+        if (context.POSSIBLEBUSINESSNAME) {
+            //If a Wit has stored and confirmed a possible business name, default to using this
+            //May refactor 'resolve possible business/location code to one function later
+            var businessName = context.POSSIBLEBUSINESSNAME;
+            delete context.POSSIBLEBUSINESSNAME;
+        } else {
+            var businessName = firstEntityValue(entities, "local_search_query");
+        }
 
-//         if (businessName) {
-//             context.businessName = businessName;
-//             console.log("Captured business name " + context.businessName);
-//             if (context.missingName) {
-//                 delete context.missingName;
-//             }
-//         } else {
-//             var otherEntityValue = checkOtherEntities(entities);
+        if (businessName) {
+            context.businessName = businessName;
+            console.log("Captured business name " + context.businessName);
+            if (context.missingName) {
+                delete context.missingName;
+            }
+        } else {
+            var otherEntityValue = checkOtherEntities(entities);
 
-//             if (otherEntityValue) {
-//                 context.POSSIBLEBUSINESSNAME = otherEntityValue;
-//             } else {
-//                 context.missingName = true;
-//             }
-//         }
-//         return Promise.resolve(context);
-//     },
-//     detectLocation({context, entities}) {
-//         console.log("Attempting to auto-detect location.")
-//         //here would attempt to detect user location automatically
-//         //when retrieved, it would add the location to context
+            if (otherEntityValue) {
+                context.POSSIBLEBUSINESSNAME = otherEntityValue;
+            } else {
+                context.missingName = true;
+            }
+        }
+        return Promise.resolve(context);
+    },
+    detectLocation({context, entities}) {
+        console.log("Attempting to auto-detect location.")
+        //here would attempt to detect user location automatically
+        //when retrieved, it would add the location to context
 
-//         //pretending these values were returned for testing purposes
-//         // context.city = "<detectedCity>"; //for testing
-//         // context.state = "<detectedState>"; //for testing
+        //pretending these values were returned for testing purposes
+        // context.city = "<detectedCity>"; //for testing
+        // context.state = "<detectedState>"; //for testing
 
-//         if (context.city && context.state) {
-//             console.log("City and state identified.")
-//             context.displayLocation = context.city + ", " + context.state
-//             delete context.locationNotFound;
-//         } else {
-//             console.log("Unable to auto-detect location.")
-//             context.locationNotFound = true;
-//         }
-//         return Promise.resolve(context);
-//     },
-//     collectLocation({context, entities}) {
-//         //If a Wit has stored and confirmed a possible business name, default to using this
-//         //May refactor 'resolve possible business/location code to one function later
-//         if (context.POSSIBLELOCATION) {
-//             var rawLocation = context.POSSIBLELOCATION;
-//             delete context.POSSIBLELOCATION;
-//         } else {
-//             var zip = firstEntityValue(entities, "number")
-//             var rawLocation = firstEntityValue(entities, "location")
-//         }
+        if (context.city && context.state) {
+            console.log("City and state identified.")
+            context.displayLocation = context.city + ", " + context.state
+            delete context.locationNotFound;
+        } else {
+            console.log("Unable to auto-detect location.")
+            context.locationNotFound = true;
+        }
+        return Promise.resolve(context);
+    },
+    collectLocation({context, entities}) {
+        //If a Wit has stored and confirmed a possible business name, default to using this
+        //May refactor 'resolve possible business/location code to one function later
+        if (context.POSSIBLELOCATION) {
+            var rawLocation = context.POSSIBLELOCATION;
+            delete context.POSSIBLELOCATION;
+        } else {
+            var zip = firstEntityValue(entities, "number")
+            var rawLocation = firstEntityValue(entities, "location")
+        }
 
-//         if (!zip && !rawLocation) {
-//             var otherEntityValue = checkOtherEntities(entities);
+        if (!zip && !rawLocation) {
+            var otherEntityValue = checkOtherEntities(entities);
 
-//             //**REFACTOR: can probably make this whole block (and similar block in business) part of checkOtherEntities
-//             if (otherEntityValue) {
-//                 context.POSSIBLELOCATION = otherEntityValue;
-//                 delete context.locationNotFound;
-//             } else {
-//                 context.locationNotFound = true;
-//             }
+            //**REFACTOR: can probably make this whole block (and similar block in business) part of checkOtherEntities
+            if (otherEntityValue) {
+                context.POSSIBLELOCATION = otherEntityValue;
+                delete context.locationNotFound;
+            } else {
+                context.locationNotFound = true;
+            }
 
-//         } else if (zip) {
-//             console.log("Location is zip. Storing zip.")
-//             context.zip = zip;
-//             context.displayLocation = zip;
-//             delete context.locationNotFound;
-//         } else if (rawLocation) {
-//             var twoPartAddy = checkTwoPartAddy(rawLocation);
+        } else if (zip) {
+            console.log("Location is zip. Storing zip.")
+            context.zip = zip;
+            context.displayLocation = zip;
+            delete context.locationNotFound;
+        } else if (rawLocation) {
+            var twoPartAddy = checkTwoPartAddy(rawLocation);
 
-//             if (twoPartAddy) {
-//                 var parsedAddy = parseAddy(rawLocation);
-//                 updateLocationContext(context, parsedAddy);
-//             } else {
-//                 //location did not contain a space or comma, so is likely incomplete
-//                 console.log("Location incomplete.")
-//                 context.locationNotFound = true;
-//             }
-//         }
+            if (twoPartAddy) {
+                var parsedAddy = parseAddy(rawLocation);
+                updateLocationContext(context, parsedAddy);
+            } else {
+                //location did not contain a space or comma, so is likely incomplete
+                console.log("Location incomplete.")
+                context.locationNotFound = true;
+            }
+        }
 
-//         return Promise.resolve(context);
-//     },
-//     executeSearch({context, entities}) {
-//         console.log("Searching BBB API.")
+        return Promise.resolve(context);
+    },
+    executeSearch({context, entities}) {
+        console.log("Searching BBB API.")
 
-//         var query = new SearchPoint;
-//         query.name = context.businessName;
-//         query.category = context.category;
-//         query.city = context.city;
-//         query.state = context.state;
-//         query.zip = context.zip;
+        var query = new SearchPoint;
+        query.name = context.businessName;
+        query.category = context.category;
+        query.city = context.city;
+        query.state = context.state;
+        query.zip = context.zip;
 
-//         bbb.makeLink(query, function(searchResults){
-//         console.log("TEST: Results sent to wit: " + searchResults);
+        bbb.makeLink(query, function(searchResults){
+        console.log("TEST: Results sent to wit: " + searchResults);
 
-//         //for testing, later will display through fb messenger, not wit text
-//         for (var i = 0; i < searchResults.length; i++){
-//             console.log(searchResults[i]["Address"])
-//         }
+        //for testing, later will display through fb messenger, not wit text
+        for (var i = 0; i < searchResults.length; i++){
+            console.log(searchResults[i]["Address"])
+        }
 
-//         if (searchResults){
-//             context.results = "TEST: First Result Address: " + searchResults[0]["Address"];
-//         } else {
-//             context.noMatches = true;
-//         }
-//         return Promise.resolve(context);
-//         });
-//     },
-//     restartSession({context}) {
-//         context.endSession = true;
-//         return Promise.resolve(context);
-//     },
-//     confirmUseCurrentLocation({context, entities}) {
-//         //process answer to whether user wants to use current location data or not
-//         console.log("Confirming y/n answer to use current location")
-//         var answer = firstEntityValue(entities, "yes_no");
-//         console.log("Answer: " + answer)
-//         if (answer === "Yes") {
-//             delete context.retry;
-//             delete context.doNotUseCL;
-//             context.useCL = true;
-//         }
-//         else if (answer === "No") {
-//             delete context.retry;
-//             delete context.useCL;
-//             delete context.city;
-//             delete context.state;
-//             delete context.displayLocation;
-//             context.doNotUseCL = true;
-//         }
-//         else {
-//             context.retry = true;
-//         }
-//         return Promise.resolve(context);
-//     },
-//     confirmBusinessName({context, entities}) {
-//         //confirm collected business name right
-//         console.log("confirming y/n business name collected is correct")
-//         var answer = firstEntityValue(entities, "yes_no");
+        if (searchResults){
+            context.results = "TEST: First Result Address: " + searchResults[0]["Address"];
+        } else {
+            context.noMatches = true;
+        }
+        return Promise.resolve(context);
+        });
+    },
+    restartSession({context}) {
+        context.endSession = true;
+        return Promise.resolve(context);
+    },
+    confirmUseCurrentLocation({context, entities}) {
+        //process answer to whether user wants to use current location data or not
+        console.log("Confirming y/n answer to use current location")
+        var answer = firstEntityValue(entities, "yes_no");
+        console.log("Answer: " + answer)
+        if (answer === "Yes") {
+            delete context.retry;
+            delete context.doNotUseCL;
+            context.useCL = true;
+        }
+        else if (answer === "No") {
+            delete context.retry;
+            delete context.useCL;
+            delete context.city;
+            delete context.state;
+            delete context.displayLocation;
+            context.doNotUseCL = true;
+        }
+        else {
+            context.retry = true;
+        }
+        return Promise.resolve(context);
+    },
+    confirmBusinessName({context, entities}) {
+        //confirm collected business name right
+        console.log("confirming y/n business name collected is correct")
+        var answer = firstEntityValue(entities, "yes_no");
 
-//         confirmYesNo(context, answer, "BUSINESSNAME");
+        confirmYesNo(context, answer, "BUSINESSNAME");
 
-//         return Promise.resolve(context);
-//     },
-//     confirmLocation({context, entities}) {
-//         //Confirm collected 'possible' location is correct.
-//         console.log("Confirming possible location collected is correct. Y/N")
-//         var answer = firstEntityValue(entities, "yes_no");
+        return Promise.resolve(context);
+    },
+    confirmLocation({context, entities}) {
+        //Confirm collected 'possible' location is correct.
+        console.log("Confirming possible location collected is correct. Y/N")
+        var answer = firstEntityValue(entities, "yes_no");
 
-//         confirmYesNo(context, answer, "LOCATION");
+        confirmYesNo(context, answer, "LOCATION");
 
-//         return Promise.resolve(context);
-//     },
-// };
+        return Promise.resolve(context);
+    },
+};
 
 
 //****END WIT CODE****//    
@@ -449,7 +450,7 @@ server.post('/webhook', function (req, res) {
                         //bot will run all actions till nothing left to do 
                         wit.runActions(sessionId, senderText, sessions[sessionId].context
                         ).then(function (context) {
-                            console.log("TEST: actions run complete, sending reply")
+                            console.log("TEST: actions run complete")
                             sessions[sessionId].context = context;
                             console.log("TEST: " + session[sessionId].context)
                             //now bot is waiting for futher emssages?
@@ -495,4 +496,4 @@ server.post('/webhook', function (req, res) {
 
 
 
-var wit = new Wit({ accessToken: WIT_TOKEN, actions: witActions.actions });
+var wit = new Wit({ accessToken: WIT_TOKEN, actions: actions });

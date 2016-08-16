@@ -13,6 +13,7 @@ var actions = {
         // const {text, quickreplies} = response;
         var recipientId = sessions[request.sessionId].fbid;
         if (recipientId) {
+            console.log("sending response")
             return sendFbMessage(recipientId, response.text)
                 .then(function () {
                     return null;
