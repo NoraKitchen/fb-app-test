@@ -1,5 +1,10 @@
+
+var parser = require('parse-address');
+
+
+
 function firstEntityValue(entities, entity) {
-    //Wit nests entity values a little deep, so this function pulls the value of a requested entitiy out.
+    //Wit entity values are burried a little deep, so this extracts them
     var val = entities && entities[entity] &&
         Array.isArray(entities[entity]) &&
         entities[entity].length > 0 &&
@@ -13,7 +18,7 @@ function firstEntityValue(entities, entity) {
 
 function checkOtherEntities(entities) {
     //Wit frequently categorizes entities incorrectly (e.g. files a business name under 'location')
-    //This function checks other entities in case there is a possible intended value there
+    //This will check all other entities in case the user input was categorized wrong
 
     var possibleValues = [];
 
@@ -33,7 +38,7 @@ function checkOtherEntities(entities) {
 function confirmYesNo(context, answer, confirmingValue) {
     //While in theory Wit should be able to react to yes/no answers from user, I could not get it to do so accurately
     //This function will help it respond to yes/no input more reliably
-    //**In the future we may simply use yes/no buttons to get around this issue
+    //**Might discuss with Sergey to make yes/no butons instead 
     if (answer === "Yes") {
         delete context[confirmingValue + "WRONG"];
         delete context.retry;
@@ -62,6 +67,7 @@ function checkTwoPartAddy(locationString) {
 
 function parseAddy(locationString) {
     //Takes in a location string ("Boise, ID", "Nampa ID 83709" and divides into city, state, zip.)
+    //Divides into city, state, zip
     //The address parser requires a street address to work reliably, hence the placeholder.
     var placeholder = "111 Placeholder "
 
@@ -70,7 +76,6 @@ function parseAddy(locationString) {
 }
 
 function updateLocationContext(context, parsedAddy) {
-    //Updates the context with the parsed address object.
     if (!parsedAddy.city && !parsedAddy.state && !parsedAddy.zip) {
         console.log("Address parse returned nothing.")
         context.locationNotFound = true;
@@ -78,7 +83,7 @@ function updateLocationContext(context, parsedAddy) {
         //Zip is parsed more reliably so default to using that if present.
         console.log("Zip found.")
         context.zip = parsedAddy.zip;
-        context.displayLocation = parsedAddy.zip; //Location stored here for easy dispay in chatbox
+        context.displayLocation = parsedAddy.zip; //Location stored for easy dispay in chatbox
         delete context.locationNotFound;
     } else if (parsedAddy.city && parsedAddy.state) {
         console.log("City and state found.")
@@ -92,11 +97,13 @@ function updateLocationContext(context, parsedAddy) {
     }
 }
 
+
 module.exports = {
     firstEntityValue: firstEntityValue,
-    checkOtherEntities:checkOtherEntities,
+    checkOtherEntities: checkOtherEntities,
+    checkTwoPartAddy: checkTwoPartAddy,
     confirmYesNo: confirmYesNo,
-    checkTwoPartAddy:checkTwoPartAddy,
     parseAddy: parseAddy,
     updateLocationContext: updateLocationContext
-}
+};
+

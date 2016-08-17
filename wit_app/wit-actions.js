@@ -1,19 +1,38 @@
-var config = require('config');
+var helpers = require('./wit-helpers');
 var fetch = require('node-fetch');
-require("./wit-helpers");
+var config = require('config');
+var bbb = require('../bbbapi');
 
-//The Wit actions object must include all functions you want to be able to directly call during the conversation
-//It also must include a 'send' function that takes in the request (user id, context, and what they said) sends back the response formulated by Wit
+// SEARCHING OBJECT CONSTUCTOR FROM SERGEY
+function SearchPoint() {
+  this.name = false;
+  this.category = false;
+  this.city = false;
+  this.state = false;
+  this.zip = false;
+//   this.userId = false;
+}
 
+//The Wit actions object - must in include all functions you may call during the conversation
+//As well as the 'send' function that says what happens whenever Wit sends a message
 var actions = {
     send(request, response) {
-        //in fb exaple had diff (args), think will work this way...
 
-        // const {sessionId, context, entities} = request;
-        // const {text, quickreplies} = response;
-        var recipientId = sessions[request.sessionId].fbid;
+        //Original example set up below.
+        // var recipientId = sessions[request.sessionId].fbid;
+        //currently using FBID instead ---look closer later to see if this cause problems?
+        var recipientId = request.sessionId;
+
+        if (request.context.newContext) {
+            //very icky way of circumventing wit to display results since context not updating after BBB API call
+            //the context gets sent back to FB before this, so...
+            //once you change this, change 'newSession' code to stop using newContext
+            request.context = request.context.newContext;
+            response.text = request.context.results
+        }
+
         if (recipientId) {
-            console.log("sending response")
+            console.log(request.context);
             return sendFbMessage(recipientId, response.text)
                 .then(function () {
                     return null;
@@ -26,13 +45,12 @@ var actions = {
         }
     },
     collectBusinessName({context, entities}) {
+
         if (context.POSSIBLEBUSINESSNAME) {
-            //If a Wit has stored and confirmed a possible business name, default to using this
-            //May refactor 'resolve possible business/location code to one function later
             var businessName = context.POSSIBLEBUSINESSNAME;
             delete context.POSSIBLEBUSINESSNAME;
         } else {
-            var businessName = firstEntityValue(entities, "local_search_query");
+            var businessName = helpers.firstEntityValue(entities, "local_search_query");
         }
 
         if (businessName) {
@@ -42,7 +60,7 @@ var actions = {
                 delete context.missingName;
             }
         } else {
-            var otherEntityValue = checkOtherEntities(entities);
+            var otherEntityValue = helpers.checkOtherEntities(entities);
 
             if (otherEntityValue) {
                 context.POSSIBLEBUSINESSNAME = otherEntityValue;
@@ -72,18 +90,17 @@ var actions = {
         return Promise.resolve(context);
     },
     collectLocation({context, entities}) {
-        //If a Wit has stored and confirmed a possible business name, default to using this
-        //May refactor 'resolve possible business/location code to one function later
+
         if (context.POSSIBLELOCATION) {
             var rawLocation = context.POSSIBLELOCATION;
             delete context.POSSIBLELOCATION;
         } else {
-            var zip = firstEntityValue(entities, "number")
-            var rawLocation = firstEntityValue(entities, "location")
+            var zip = helpers.firstEntityValue(entities, "number")
+            var rawLocation = helpers.firstEntityValue(entities, "location")
         }
 
         if (!zip && !rawLocation) {
-            var otherEntityValue = checkOtherEntities(entities);
+            var otherEntityValue = helpers.checkOtherEntities(entities);
 
             //**REFACTOR: can probably make this whole block (and similar block in business) part of checkOtherEntities
             if (otherEntityValue) {
@@ -94,19 +111,23 @@ var actions = {
             }
 
         } else if (zip) {
-            console.log("Location is zip. Storing zip.")
+            console.log("Location is zip. Zip collected as location.")
             context.zip = zip;
             context.displayLocation = zip;
             delete context.locationNotFound;
         } else if (rawLocation) {
-            var twoPartAddy = checkTwoPartAddy(rawLocation);
+            //The location collected from the user input was not a zip.
+            //Likely it is a city/state combo wit failed to parse and took as a whole ("Boise, Idaho 83709", "Newport, OR", etc.)
+            //Check if the address is the required two part address, if so parse it.
+            //If the address contains the necessary parts (zip or city and state), update the context.
+
+            var twoPartAddy = helpers.checkTwoPartAddy(rawLocation);
 
             if (twoPartAddy) {
-                var parsedAddy = parseAddy(rawLocation);
-                updateLocationContext(context, parsedAddy);
+                var parsedAddy = helpers.parseAddy(rawLocation);
+                helpers.updateLocationContext(context, parsedAddy);
             } else {
                 //location did not contain a space or comma, so is likely incomplete
-                console.log("Location incomplete.")
                 context.locationNotFound = true;
             }
         }
@@ -123,21 +144,22 @@ var actions = {
         query.state = context.state;
         query.zip = context.zip;
 
-        bbb.makeLink(query, function (searchResults) {
-            console.log("TEST: Results sent to wit: " + searchResults);
+        return Promise.resolve({newContext: context, results: bbb.makeLink(query, function(searchResults){
+        console.log("TEST: Results sent to wit: " + searchResults);
 
-            //for testing, later will display through fb messenger, not wit text
-            for (var i = 0; i < searchResults.length; i++) {
-                console.log(searchResults[i]["Address"])
-            }
+        //for testing, later will display through fb messenger, not wit text
+        for (var i = 0; i < searchResults.length; i++){
+            console.log(searchResults[i]["Address"])
+        }
 
-            if (searchResults) {
-                context.results = "TEST: First Result Address: " + searchResults[0]["Address"];
-            } else {
-                context.noMatches = true;
-            }
-            return Promise.resolve(context);
-        });
+        if (searchResults){
+            context.results = "TEST: First Result Address: " + searchResults[0]["Address"];
+        } else {
+            context.noMatches = true;
+        }
+        return context;
+        })}
+        )
     },
     restartSession({context}) {
         context.endSession = true;
@@ -145,8 +167,8 @@ var actions = {
     },
     confirmUseCurrentLocation({context, entities}) {
         //process answer to whether user wants to use current location data or not
-        console.log("Confirming y/n answer to use current location")
-        var answer = firstEntityValue(entities, "yes_no");
+        //can probably refactor to use yes/no helper function or buttons
+        var answer = helpers.firstEntityValue(entities, "yes_no");
         console.log("Answer: " + answer)
         if (answer === "Yes") {
             delete context.retry;
@@ -167,28 +189,21 @@ var actions = {
         return Promise.resolve(context);
     },
     confirmBusinessName({context, entities}) {
-        //confirm collected business name right
-        console.log("confirming y/n business name collected is correct")
-        var answer = firstEntityValue(entities, "yes_no");
-
-        confirmYesNo(context, answer, "BUSINESSNAME");
-
+        var answer = helpers.firstEntityValue(entities, "yes_no");
+        helpers.confirmYesNo(context, answer, "BUSINESSNAME");
         return Promise.resolve(context);
     },
     confirmLocation({context, entities}) {
-        //Confirm collected 'possible' location is correct.
-        console.log("Confirming possible location collected is correct. Y/N")
-        var answer = firstEntityValue(entities, "yes_no");
-
-        confirmYesNo(context, answer, "LOCATION");
-
+        var answer = helpers.firstEntityValue(entities, "yes_no");
+        helpers.confirmYesNo(context, answer, "LOCATION");
         return Promise.resolve(context);
     },
 };
 
+//Put this in another module later
 
-//leaving this here for now. wit needs to call it but really belongs more with FB code 
 var PAGE_ACCESS_TOKEN = config.get("pageAccessToken");
+
 function sendFbMessage(id, text) {
     var body = JSON.stringify({
         //upt in quotes, dunno if ness

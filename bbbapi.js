@@ -4,6 +4,7 @@ var https = require('https');
 // BBB api token 
 const API_TOKEN = config.get('token');
 
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 // BBB.org API
 function makeLink(query, cb) {
@@ -14,23 +15,9 @@ function makeLink(query, cb) {
     if (query.category) reqLink += "&PrimaryCategory=" + query.category;
     if (query.zip) reqLink += '&PostalCode=' + query.zip;
 
-    console.log(reqLink)
 
-     findBusiness(reqLink, cb);
+     return findBusiness(reqLink, cb);
 
-    // findBusiness(reqLink, function (somedata) {
-    //     if (somedata == "NoData") {
-    //         console.log("no data")
-    //         return false;
-    //         //   sendTextMessage(query.userId,"Sorry no data for this request")
-    //     } else {
-    //         console.log(somedata);
-    //         console.log("data passed")
-    //         return(somedata);
-    //         //   showListOfBusiness(query.userId, somedata);
-    //     }
-
-    // });
 };
 
 function findBusiness(reqLink, callback) {
@@ -71,6 +58,7 @@ function findBusiness(reqLink, callback) {
     request.on('error', function (error) {
         console.log('problem with request: ' + error.message);
     });
+
     request.end();
 };
 
