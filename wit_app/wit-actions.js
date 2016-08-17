@@ -3,6 +3,7 @@ var fetch = require('node-fetch');
 var config = require('config');
 var bbb = require('../bbbapi');
 
+
 // SEARCHING OBJECT CONSTUCTOR FROM SERGEY
 function SearchPoint() {
   this.name = false;

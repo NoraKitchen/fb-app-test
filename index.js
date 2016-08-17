@@ -97,9 +97,9 @@ server.post('/webhook', function (req, res) {
                         //bot will run all actions till nothing left to do 
                         wit.runActions(sender, senderText, sessions[sessionId].context
                         ).then(function (context) {
-                            console.log("TEST: actions run complete")
-                            sessions[sessionId].context = context;
-                            console.log("TEST: " + session[sessionId].context)
+                            console.log("TEST: actions run complete");
+                             sessions[sessionId].context = context;
+                            console.log("TEST: " + sessions[sessionId].context)
                             //now bot is waiting for futher emssages?
                             //based on session state/business logic, might defcone session here
                             //if (context['done']){delete sessions[sessionId]}
