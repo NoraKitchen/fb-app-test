@@ -41,7 +41,7 @@ function findOrCreateSession(fbid) {
     if (!sessionId) {
         // No session found for user fbid, let's create a new one
         sessionId = new Date().toISOString();
-        sessions[sessionId] = { fbid: fbid, context: {} };
+        sessions[sessionId] = { fbid: fbid, context: {["uid"]: fbid} };
     }
     return sessionId;
 };
@@ -99,7 +99,6 @@ server.post('/webhook', function (req, res) {
                         ).then(function (context) {
                             console.log("TEST: actions run complete");
                              sessions[sessionId].context = context;
-                            console.log("TEST: " + sessions[sessionId].context)
                             //now bot is waiting for futher emssages?
                             //based on session state/business logic, might defcone session here
                             //if (context['done']){delete sessions[sessionId]}
@@ -107,12 +106,13 @@ server.post('/webhook', function (req, res) {
                                 //search returned no results, ending session to restart search
                                 console.log("restarting session")
                                 delete sessions[sessionId];
-                            } else if (context.newContext.results) {
-                                //code to display results here, possibly buttons to restart search or display more
-                                //for now I am auto-deleting session/search till we have buttons to restart
-                                console.log("restarting session")
-                                delete sessions[sessionId];
-                            }
+                            } 
+                            // else if (context.newContext) {
+                            //     //code to display results here, possibly buttons to restart search or display more
+                            //     //for now I am auto-deleting session/search till we have buttons to restart
+                            //     console.log("restarting session")
+                            //     delete sessions[sessionId];
+                            // }
 
                         })
                     }

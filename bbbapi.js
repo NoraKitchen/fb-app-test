@@ -1,5 +1,6 @@
 var config = require('config');
 var https = require('https');
+var fbm = require('./fb-message');
 
 // BBB api token 
 const API_TOKEN = config.get('token');
@@ -16,7 +17,20 @@ function makeLink(query, cb) {
     if (query.zip) reqLink += '&PostalCode=' + query.zip;
 
 
-     return findBusiness(reqLink, cb);
+    findBusiness(reqLink, function (somedata) {
+        if (somedata == "NoData") {
+            fbm.sendFbMessage(query.userId, "Sorry, I couldn't find anything for " + query.name || query.category + " at that location.")
+        } else {
+            // showListOfBusiness(sp.userId, somedata);
+            //just for testing 
+            var displayResults = "";
+            for (var i = 0; i < somedata.length; i++) {
+                var businessEntry = somedata[i];
+                displayResults += businessEntry.OrganizationName + ": " + businessEntry.Address + "  //  ";
+            }
+            fbm.sendFbMessage(query.userId, displayResults);
+        }
+    });
 
 };
 
@@ -46,11 +60,11 @@ function findBusiness(reqLink, callback) {
             if (nodes.TotalResults) {
                 console.log("Total Results: " + nodes.TotalResults);
             }
-            if (nodes.SearchResults) {
+            if (nodes.SearchResults.length > 0) {
                 callback(nodes.SearchResults);
             } else {
                 console.log("got no data on response")
-                callback(false);
+                callback("NoData");
             }
         });
     });

@@ -1,7 +1,7 @@
-var helpers = require('./wit-helpers');
-var fetch = require('node-fetch');
 var config = require('config');
+var helpers = require('./wit-helpers');
 var bbb = require('../bbbapi');
+var fbm = require('../fb-message')
 
 
 // SEARCHING OBJECT CONSTUCTOR FROM SERGEY
@@ -11,30 +11,36 @@ function SearchPoint() {
   this.city = false;
   this.state = false;
   this.zip = false;
-//   this.userId = false;
+  this.userId = false;
 }
 
 //The Wit actions object - must in include all functions you may call during the conversation
 //As well as the 'send' function that says what happens whenever Wit sends a message
 var actions = {
     send(request, response) {
-
         //Original example set up below.
         // var recipientId = sessions[request.sessionId].fbid;
         //currently using FBID instead ---look closer later to see if this cause problems?
         var recipientId = request.sessionId;
 
-        if (request.context.newContext) {
-            //very icky way of circumventing wit to display results since context not updating after BBB API call
-            //the context gets sent back to FB before this, so...
-            //once you change this, change 'newSession' code to stop using newContext
-            request.context = request.context.newContext;
-            response.text = request.context.results
-        }
+        //helpers later ----didn't keep updates
+        // if (request.entities.find_by_name_request) {
+        //     request.context.findByName = true;
+        // } else if (request.entities.find_by_category_request){
+        //     request.context.findbyCategory = true;
+        // }
+
+        // if (request.context.newContext) {
+        //     //very icky way of circumventing wit to display results since context not updating after BBB API call
+        //     //the context gets sent back to FB before this, so...
+        //     //once you change this, change 'newSession' code to stop using newContext
+        //     request.context = request.context.newContext;
+        //     response.text = request.context.results
+        // }
 
         if (recipientId) {
             console.log(request.context);
-            return sendFbMessage(recipientId, response.text)
+            return fbm.sendFbMessage(recipientId, response.text)
                 .then(function () {
                     return null;
                 }) //.catch here 
@@ -56,6 +62,7 @@ var actions = {
 
         if (businessName) {
             context.businessName = businessName;
+            context.hasNameOrCategory = true;
             console.log("Captured business name " + context.businessName);
             if (context.missingName) {
                 delete context.missingName;
@@ -77,12 +84,11 @@ var actions = {
         //when retrieved, it would add the location to context
 
         //pretending these values were returned for testing purposes
-        // context.city = "<detectedCity>"; //for testing
-        // context.state = "<detectedState>"; //for testing
+        // context.detectedCity = "<detectedCity>"; //for testing
+        // context.detectedState = "<detectedState>"; //for testing
 
-        if (context.city && context.state) {
+        if (context.detectedCity && context.detectedState) {
             console.log("City and state identified.")
-            context.displayLocation = context.city + ", " + context.state
             delete context.locationNotFound;
         } else {
             console.log("Unable to auto-detect location.")
@@ -144,28 +150,37 @@ var actions = {
         query.city = context.city;
         query.state = context.state;
         query.zip = context.zip;
+        query.userId = context.uid;
 
-        return Promise.resolve({newContext: context, results: bbb.makeLink(query, function(searchResults){
-        console.log("TEST: Results sent to wit: " + searchResults);
-
-        //for testing, later will display through fb messenger, not wit text
-        for (var i = 0; i < searchResults.length; i++){
-            console.log(searchResults[i]["Address"])
-        }
-
-        if (searchResults){
-            context.results = "TEST: First Result Address: " + searchResults[0]["Address"];
-        } else {
-            context.noMatches = true;
-        }
-        return context;
-        })}
-        )
-    },
-    restartSession({context}) {
+        bbb.makeLink(query);
         context.endSession = true;
+        // return Promise.resolve({
+        //     //Icky way of returning data back to send/promise....look into better later?
+        //     businessName: context.businessName,
+        //     displayLocation: context.displayLocation,
+        //     newContext: context,
+        //     resultsPlaceholder: bbb.makeLink(query, function(searchResults){
+        //         console.log("TEST: Results sent to wit: " + searchResults);
+
+        //         //for testing, later will display through fb messenger, not wit text
+        //         for (var i = 0; i < searchResults.length; i++){
+        //             console.log(searchResults[i]["Address"])
+        //         }
+
+        //         if (searchResults){
+        //             context.results = "TEST: First Result Address: " + searchResults[0]["Address"];
+        //         } else {
+        //             context.results = "Sorry, I couldn't find anything for " +context.businessName+ " in " +context.displayLocation + "."
+        //         }
+        //         return context;
+        //     })
+        // })
         return Promise.resolve(context);
     },
+    // restartSession({context}) {
+    //     context.endSession = true;
+    //     return Promise.resolve(context);
+    // },
     confirmUseCurrentLocation({context, entities}) {
         //process answer to whether user wants to use current location data or not
         //can probably refactor to use yes/no helper function or buttons
@@ -174,14 +189,16 @@ var actions = {
         if (answer === "Yes") {
             delete context.retry;
             delete context.doNotUseCL;
+            context.city = contxt.detectedCity;
+            context.state = context.detectedState;
+            context.displayLocation = context.city + ", " +context.state;
             context.useCL = true;
         }
         else if (answer === "No") {
             delete context.retry;
             delete context.useCL;
-            delete context.city;
-            delete context.state;
-            delete context.displayLocation;
+            delete context.detectedCity;
+            delete context.detectedState;
             context.doNotUseCL = true;
         }
         else {
@@ -199,32 +216,6 @@ var actions = {
         helpers.confirmYesNo(context, answer, "LOCATION");
         return Promise.resolve(context);
     },
-};
-
-//Put this in another module later
-
-var PAGE_ACCESS_TOKEN = config.get("pageAccessToken");
-
-function sendFbMessage(id, text) {
-    var body = JSON.stringify({
-        //upt in quotes, dunno if ness
-        recipient: { "id": id },
-        message: { "text": text },
-    });
-    //uses fetch instead of request like below
-    var qs = 'access_token=' + encodeURIComponent(PAGE_ACCESS_TOKEN);
-    return fetch('https://graph.facebook.com/me/messages?' + qs, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-    })
-        .then(rsp => rsp.json())
-        .then(json => {
-            if (json.error && json.error.message) {
-                throw new Error(json.error.message);
-            }
-            return json;
-        });
 };
 
 
