@@ -13,24 +13,20 @@ function SearchPoint() {
 //   this.userId = false;
 }
 
-//The Wit actions object - mustin include all functions you may call during the conversation
-//as well as the 'send' function that says what happens whenever Wit formulates a reply and sends it back
-//In this case we call sendFbMessage in the send method, in order to send the response to the facebook user indicated
+//The Wit actions object - must in include all functions you may call during the conversation
+//As well as the 'send' function that says what happens whenever Wit sends a message
 var actions = {
     send(request, response) {
-        //in fb exaple had diff (args), think will work this way...
 
-        // const {sessionId, context, entities} = request;
-        // const {text, quickreplies} = response;
-
-        //retrieve user whose session belongs to
+        //Original example set up below.
         // var recipientId = sessions[request.sessionId].fbid;
+        //currently using FBID instead ---look closer later to see if this cause problems?
         var recipientId = request.sessionId;
 
         if (request.context.newContext) {
-            //very icky way of circumventing wit to display results since context not updating
+            //very icky way of circumventing wit to display results since context not updating after BBB API call
             //the context gets sent back to FB before this, so...
-            //once you change this, change 'newSession' code to stop useing newContext
+            //once you change this, change 'newSession' code to stop using newContext
             request.context = request.context.newContext;
             response.text = request.context.results
         }
@@ -49,15 +45,11 @@ var actions = {
         }
     },
     collectBusinessName({context, entities}) {
-        //the structure of entities is a little odd. firstEntityValue digs into it and pulls out the actual text value we want 
-        console.log(entities);
 
         if (context.POSSIBLEBUSINESSNAME) {
-            console.log("Resolving possible business name to confirmed business name.")
             var businessName = context.POSSIBLEBUSINESSNAME;
             delete context.POSSIBLEBUSINESSNAME;
         } else {
-            console.log("running first ent")
             var businessName = helpers.firstEntityValue(entities, "local_search_query");
         }
 
@@ -68,7 +60,6 @@ var actions = {
                 delete context.missingName;
             }
         } else {
-            console.log("Unable to extract expected business name/local search query entity.")
             var otherEntityValue = helpers.checkOtherEntities(entities);
 
             if (otherEntityValue) {
@@ -99,11 +90,8 @@ var actions = {
         return Promise.resolve(context);
     },
     collectLocation({context, entities}) {
-        console.log("Location string accepted.")
-        console.log(entities);  //for testing
 
         if (context.POSSIBLELOCATION) {
-            console.log("Resolving possible location to confirmed location.")
             var rawLocation = context.POSSIBLELOCATION;
             delete context.POSSIBLELOCATION;
         } else {
@@ -112,12 +100,9 @@ var actions = {
         }
 
         if (!zip && !rawLocation) {
-            //No location found in input
-            console.log("Neither zip number nor location string extracted.")
             var otherEntityValue = helpers.checkOtherEntities(entities);
 
             if (otherEntityValue) {
-                console.log("OTHER ENTITY SET AS POSSIBLE, SHOULD GO POSS ROUTE.")
                 context.POSSIBLELOCATION = otherEntityValue;
                 delete context.locationNotFound;
             } else {
@@ -125,7 +110,7 @@ var actions = {
             }
 
         } else if (zip) {
-            console.log("Location is zip. Storing zip.")
+            console.log("Location is zip. Zip collected as location.")
             context.zip = zip;
             context.displayLocation = zip;
             delete context.locationNotFound;
@@ -142,7 +127,6 @@ var actions = {
                 helpers.updateLocationContext(context, parsedAddy);
             } else {
                 //location did not contain a space or comma, so is likely incomplete
-                console.log("Location incomplete.")
                 context.locationNotFound = true;
             }
         }
@@ -183,7 +167,7 @@ var actions = {
     },
     confirmUseCurrentLocation({context, entities}) {
         //process answer to whether user wants to use current location data or not
-        console.log("Confirming y/n answer to use current location")
+        //can probably refactor to use yes/no helper function or buttons
         var answer = helpers.firstEntityValue(entities, "yes_no");
         console.log("Answer: " + answer)
         if (answer === "Yes") {
@@ -205,21 +189,13 @@ var actions = {
         return Promise.resolve(context);
     },
     confirmBusinessName({context, entities}) {
-        //confirm collected business name right
-        console.log("confirming y/n business name collected is correct")
         var answer = helpers.firstEntityValue(entities, "yes_no");
-
         helpers.confirmYesNo(context, answer, "BUSINESSNAME");
-
         return Promise.resolve(context);
     },
     confirmLocation({context, entities}) {
-        //Confirm collected 'possible' location is correct.
-        console.log("Confirming possible location collected is correct. Y/N")
         var answer = helpers.firstEntityValue(entities, "yes_no");
-
         helpers.confirmYesNo(context, answer, "LOCATION");
-
         return Promise.resolve(context);
     },
 };

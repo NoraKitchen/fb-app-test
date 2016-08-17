@@ -3,7 +3,7 @@ var parser = require('parse-address');
 
 
 function firstEntityValue(entities, entity) {
-    //Attempts to pull entity values/variables for use in functions/actions below
+    //Wit entity values are burried a little deep, so this extracts them
     var val = entities && entities[entity] &&
         Array.isArray(entities[entity]) &&
         entities[entity].length > 0 &&
@@ -17,11 +17,8 @@ function firstEntityValue(entities, entity) {
 
 function checkOtherEntities(entities) {
     //Wit frequently categorizes entities incorrectly (e.g. files a business name under 'location')
-    //This will check all other entities collected from the user input and store their values
-    //If one single other entity/value is found, it is likey what the user intended.
-    //The value is returned so we can check with the user what they meant by it.
+    //This will check all other entities in case the user input was categorized wrong
 
-    console.log("Expected entity not found in user input. Checking other entities for possible values.")
     var possibleValues = [];
 
     for (var entity in entities) {
@@ -30,22 +27,17 @@ function checkOtherEntities(entities) {
     };
 
     if (possibleValues.length === 1) {
-        console.log("One other entity found. Returning as possible intended value.")
-        console.log("poss value" + possibleValues[0]);
-        // context.possibleBusinessName = possibleBusinessNames[0];
         return possibleValues[0];
     } else {
-        //Either no other entities were found, or multiple other entites were found, making it difficult to determine what the user meant.
-        console.log("No other entities found, or multi entities. Target entity capture failed.")
+        //Either no other entities were found, or multiple other entites were found, making it difficult to determine which the user meant.
         return false;
-        // context.missingName = true;
     }
 }
 
 function confirmYesNo(context, answer, confirmingValue) {
     //While in theory Wit should be able to react to yes/no answers from user, I could not get it to do so accurately
     //This function will help it respond to yes/no input more reliably
-    //It is specifically for checking/confirming when Wit has probably not picked up/categorized user input correctly, and we want to double check we want to double check with the user
+    //**Might discuss with Sergey to make yes/no butons instead 
     if (answer === "Yes") {
         delete context[confirmingValue + "WRONG"];
         delete context.retry;
@@ -74,8 +66,7 @@ function checkTwoPartAddy(locationString) {
 
 function parseAddy(locationString) {
     //Takes in a location string ("Boise, ID", "Nampa ID 83709" and divides into city, state, zip.)
-    console.log("Parsing location into city and state, or zip if applicable.")
-
+    //Divides into city, state, zip
     //The address parser requires a street address to work reliably, hence the placeholder.
     var placeholder = "111 Placeholder "
 
@@ -84,8 +75,6 @@ function parseAddy(locationString) {
 }
 
 function updateLocationContext(context, parsedAddy) {
-    //Updates the context with the parsed address object.
-    //If address does not contain the necessary parts, tell with the location was not found.
     if (!parsedAddy.city && !parsedAddy.state && !parsedAddy.zip) {
         console.log("Address parse returned nothing.")
         context.locationNotFound = true;
@@ -93,7 +82,7 @@ function updateLocationContext(context, parsedAddy) {
         //Zip is parsed more reliably so default to using that if present.
         console.log("Zip found.")
         context.zip = parsedAddy.zip;
-        context.displayLocation = parsedAddy.zip; //Location stored for dispay in chatbox
+        context.displayLocation = parsedAddy.zip; //Location stored for easy dispay in chatbox
         delete context.locationNotFound;
     } else if (parsedAddy.city && parsedAddy.state) {
         console.log("City and state found.")
@@ -102,7 +91,7 @@ function updateLocationContext(context, parsedAddy) {
         context.displayLocation = parsedAddy.city + ", " + parsedAddy.state;
         delete context.locationNotFound;
     } else {
-        //Only a city or only a state was found. don't bother accepting the information.
+        //Only a city or only a state was found. Don't bother accepting the information.
         context.locationNotFound = true;
     }
 }
