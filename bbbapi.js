@@ -4,9 +4,10 @@ var https = require('https');
 // BBB api token 
 const API_TOKEN = config.get('token');
 
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 // BBB.org API
-function makeLink(query) {
+function makeLink(query, cb) {
     var reqLink = '';
     if (query.name) reqLink += '&PrimaryOrganizationName=' + query.name;
     if (query.city) reqLink += '&City=' + query.city;
@@ -14,20 +15,21 @@ function makeLink(query) {
     if (query.category) reqLink += "&PrimaryCategory=" + query.category;
     if (query.zip) reqLink += '&PostalCode=' + query.zip;
 
-    console.log(reqLink)
 
-    findBusiness(reqLink, function (somedata) {
-        if (somedata == "NoData") {
-            console.log("no data")
-            // return false;
-            //   sendTextMessage(query.userId,"Sorry no data for this request")
-        } else {
-            // return somedata;
-            //   showListOfBusiness(query.userId, somedata);
-            console.log(somedata);
-        }
+     return findBusiness(reqLink, cb);
 
-    });
+    // findBusiness(reqLink, function (somedata) {
+    //     if (somedata == "NoData") {
+    //         console.log("no data")
+    //         // return false;
+    //         //   sendTextMessage(query.userId,"Sorry no data for this request")
+    //     } else {
+    //         // return somedata;
+    //         //   showListOfBusiness(query.userId, somedata);
+    //         console.log(somedata);
+    //     }
+
+    // });
 };
 
 function findBusiness(reqLink, callback) {
@@ -67,7 +69,7 @@ function findBusiness(reqLink, callback) {
                 callback(nodes.SearchResults);
             } else {
                 console.log("got no data on response")
-                callback("NoData");
+                callback(false);
             }
         });
     });
@@ -75,6 +77,7 @@ function findBusiness(reqLink, callback) {
     request.on('error', function (error) {
         console.log('problem with request: ' + error.message);
     });
+
     request.end();
 };
 

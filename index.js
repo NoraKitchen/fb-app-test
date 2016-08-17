@@ -4,7 +4,7 @@ var request = require('request');
 var fetch = require('node-fetch');
 var config = require('config');
 var parser = require('parse-address')
-// var bbb = require('./bbbapi');
+var bbb = require('./bbbapi');
 var port = process.env.PORT || 8080;
 
 
@@ -264,6 +264,7 @@ var actions = {
         //retrieve user whose session belongs to
         var recipientId = sessions[request.sessionId].fbid;
         if (recipientId) {
+            console.log(request.context);
             return sendFbMessage(recipientId, response.text)
                 .then(function () {
                     return null;
@@ -385,21 +386,22 @@ var actions = {
         query.state = context.state;
         query.zip = context.zip;
 
-        // var searchResults = bbb.makeLink(query);
+        return Promise.resolve(bbb.makeLink(query, function(searchResults){
+        console.log("TEST: Results sent to wit: " + searchResults);
 
-         var searchResults = "<Search Results>"
+        //for testing, later will display through fb messenger, not wit text
+        for (var i = 0; i < searchResults.length; i++){
+            console.log(searchResults[i]["Address"])
+        }
 
-        // bbb.makeLink(query, function(searchResults){
-        // console.log("Search results sent to wit: "+ searchResults)
-        if (searchResults) {
-            delete context.noMatches;
-            context.results = serachResults; //the real search results go here
+        if (searchResults){
+            context.results = "TEST: First Result Address: " + searchResults[0]["Address"];
         } else {
             context.noMatches = true;
         }
-        return Promise.resolve(context);
-
-        // });
+        return context;
+        })
+        )
 
     },
     restartSession({context}) {
