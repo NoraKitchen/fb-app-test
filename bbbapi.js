@@ -18,18 +18,6 @@ function makeLink(query, cb) {
 
      return findBusiness(reqLink, cb);
 
-    // findBusiness(reqLink, function (somedata) {
-    //     if (somedata == "NoData") {
-    //         console.log("no data")
-    //         // return false;
-    //         //   sendTextMessage(query.userId,"Sorry no data for this request")
-    //     } else {
-    //         // return somedata;
-    //         //   showListOfBusiness(query.userId, somedata);
-    //         console.log(somedata);
-    //     }
-
-    // });
 };
 
 function findBusiness(reqLink, callback) {
@@ -53,14 +41,7 @@ function findBusiness(reqLink, callback) {
 
         response.on("end", function () {
 
-            console.log(body);
-            //TotalResults: 0, SearchResults: [];
-
             var nodes = JSON.parse(body);
-
-            //somehow seems to make it here, can log
-            //but to nothing below
-            //also even if made it to below, no search results
 
             if (nodes.TotalResults) {
                 console.log("Total Results: " + nodes.TotalResults);

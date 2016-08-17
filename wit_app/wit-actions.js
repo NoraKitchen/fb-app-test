@@ -102,6 +102,7 @@ var actions = {
         if (!zip && !rawLocation) {
             var otherEntityValue = helpers.checkOtherEntities(entities);
 
+            //**REFACTOR: can probably make this whole block (and similar block in business) part of checkOtherEntities
             if (otherEntityValue) {
                 context.POSSIBLELOCATION = otherEntityValue;
                 delete context.locationNotFound;
@@ -159,7 +160,6 @@ var actions = {
         return context;
         })}
         )
-
     },
     restartSession({context}) {
         context.endSession = true;
@@ -199,7 +199,6 @@ var actions = {
         return Promise.resolve(context);
     },
 };
-
 
 //Put this in another module later
 
