@@ -263,6 +263,15 @@ var actions = {
 
         //retrieve user whose session belongs to
         var recipientId = sessions[request.sessionId].fbid;
+
+        if (request.context.newContext) {
+            //very icky way of circumventing wit to display results since context not updating
+            //the context gets sent back to FB before this, so...
+            //once you change this, change 'newSession' code to stop useing newContext
+            request.context = request.context.newContext;
+            response.text = request.context.results
+        }
+
         if (recipientId) {
             console.log(request.context);
             return sendFbMessage(recipientId, response.text)
@@ -386,7 +395,7 @@ var actions = {
         query.state = context.state;
         query.zip = context.zip;
 
-        return Promise.resolve(bbb.makeLink(query, function(searchResults){
+        return Promise.resolve({newContext: context, results: bbb.makeLink(query, function(searchResults){
         console.log("TEST: Results sent to wit: " + searchResults);
 
         //for testing, later will display through fb messenger, not wit text
@@ -400,7 +409,7 @@ var actions = {
             context.noMatches = true;
         }
         return context;
-        })
+        })}
         )
 
     },
@@ -514,7 +523,7 @@ server.post('/webhook', function (req, res) {
                                 //search returned no results, ending session to restart search
                                 console.log("restarting session")
                                 delete sessions[sessionId];
-                            } else if (context.results) {
+                            } else if (context.newContext.results) {
                                 //code to display results here, possibly buttons to restart search or display more
                                 //for now I am auto-deleting session/search till we have buttons to restart
                                 console.log("restarting session")
