@@ -24,13 +24,15 @@ function makeLink(query, cb) {
             fbm.sendFbMessage(query.userId, "Sorry, I couldn't find anything for " + query.name || query.category + " at that location.")
         } else {
             // showListOfBusiness(sp.userId, somedata);
-            //just for testing 
             var displayResults = "";
+            // var categories = ""; //for testing
             for (var i = 0; i < somedata.length; i++) {
                 var businessEntry = somedata[i];
                 displayResults += businessEntry.OrganizationName + ": " + businessEntry.Address + "  //  ";
+                // categories += businessEntry.PrimaryCategory + "  //  ";
+
             }
-            fbm.sendFbMessage(query.userId, displayResults);
+            console.log("TEST:")
         }
     });
 

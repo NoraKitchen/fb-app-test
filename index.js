@@ -41,7 +41,8 @@ function findOrCreateSession(fbid) {
     if (!sessionId) {
         // No session found for user fbid, let's create a new one
         sessionId = new Date().toISOString();
-        sessions[sessionId] = { fbid: fbid, context: {["uid"]: fbid} };
+        //setting to findByCategory manually here for testing
+        sessions[sessionId] = { fbid: fbid, context: {["uid"]: fbid, findByCategory: true} };
     }
     return sessionId;
 };

@@ -46,7 +46,6 @@ function confirmYesNo(context, answer, confirmingValue) {
     } else if (answer === "No") {
         delete context[confirmingValue + "CONFIRMED"];
         delete context.retry;
-        console.log("test log context for deleted possible")
         console.log(context);
         delete context["POSSIBLE" + confirmingValue];
         context[confirmingValue + "WRONG"] = true;

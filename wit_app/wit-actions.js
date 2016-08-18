@@ -52,7 +52,7 @@ var actions = {
         }
     },
     collectNameOrCat({context, entities}) {
-        var collectingValue = context.findByCateogry ? "category" : "businessName";
+        var collectingValue = context.findByCategory ? "category" : "businessName";
 
         if (context["POSSIBLE" + collectingValue.toUpperCase()]) {
             var lsq = context["POSSIBLE" + collectingValue.toUpperCase()];
@@ -66,6 +66,7 @@ var actions = {
             context.hasNameOrCategory = true;
             delete context.MISSINGBUSINESSNAME;
             delete context.MISSINGCATEGORY;
+            delete context[collectingValue + "WRONG"];
         } else {
             var otherEntityValue = helpers.checkOtherEntities(entities);
 
@@ -234,7 +235,7 @@ var actions = {
         return Promise.resolve(context);
     },
     confirmBusinessNameOrCategory({context, entities}) {
-        var confirmingValue = context.findByCateogry ? "CATEGORY" : "BUSINESSNAME";
+        var confirmingValue = context.findByCategory ? "CATEGORY" : "BUSINESSNAME";
         var answer = helpers.firstEntityValue(entities, "yes_no");
         helpers.confirmYesNo(context, answer, confirmingValue);
         return Promise.resolve(context);
