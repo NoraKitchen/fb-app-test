@@ -51,10 +51,15 @@ var actions = {
             // });
         }
     },
-    collectBusinessName({context, entities}) {
-
+    collectNameOrCat({context, entities}) {
         var collectingValue = context.findByCateogry ? "category" : "businessName";
-        //pull out entity value of local search query
+
+        if (context["POSSIBLE" + collectingValue.toUpperCase()]) {
+            var lsq = context["POSSIBLE" + collectingValue.toUpperCase()];
+            delete context["POSSIBLE" + collectingValue.toUpperCase()];
+        } else {
+            var lsq = helpers.firstEntityValue(entities, "local_search_query");
+        }
 
         if (lsq) {
             context[collectingValue] = lsq;
@@ -75,12 +80,12 @@ var actions = {
         ///////
 
 
-        if (context.POSSIBLEBUSINESSNAME) {
-            var businessName = context.POSSIBLEBUSINESSNAME;
-            delete context.POSSIBLEBUSINESSNAME;
-        } else {
-            var businessName = helpers.firstEntityValue(entities, "local_search_query");
-        }
+        // if (context.POSSIBLEBUSINESSNAME) {
+        //     var businessName = context.POSSIBLEBUSINESSNAME;
+        //     delete context.POSSIBLEBUSINESSNAME;
+        // } else {
+        //     var businessName = helpers.firstEntityValue(entities, "local_search_query");
+        // }
 
         // if (businessName) {
         //     context.businessName = businessName;
@@ -96,9 +101,9 @@ var actions = {
         //         context.POSSIBLEBUSINESSNAME = otherEntityValue;
         //     } else {
         //         context.MISSINGBUSINESSNAME = true;
-        //     }
-        }
-        return Promise.resolve(context);
+        //     //     }
+        // }
+        //     return Promise.resolve(context);
     },
     detectLocation({context, entities}) {
         console.log("Attempting to auto-detect location.")
@@ -228,9 +233,10 @@ var actions = {
         }
         return Promise.resolve(context);
     },
-    confirmBusinessName({context, entities}) {
+    confirmBusinessNameOrCategory({context, entities}) {
+        var confirmingValue = context.findByCateogry ? "CATEGORY" : "BUSINESSNAME";
         var answer = helpers.firstEntityValue(entities, "yes_no");
-        helpers.confirmYesNo(context, answer, "BUSINESSNAME");
+        helpers.confirmYesNo(context, answer, confirmingValue);
         return Promise.resolve(context);
     },
     confirmLocation({context, entities}) {
