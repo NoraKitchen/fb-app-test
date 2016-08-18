@@ -6,12 +6,12 @@ var fbm = require('../fb-message')
 
 // SEARCHING OBJECT CONSTUCTOR FROM SERGEY
 function SearchPoint() {
-  this.name = false;
-  this.category = false;
-  this.city = false;
-  this.state = false;
-  this.zip = false;
-  this.userId = false;
+    this.name = false;
+    this.category = false;
+    this.city = false;
+    this.state = false;
+    this.zip = false;
+    this.userId = false;
 }
 
 //The Wit actions object - must in include all functions you may call during the conversation
@@ -53,6 +53,28 @@ var actions = {
     },
     collectBusinessName({context, entities}) {
 
+        var collectingValue = context.findByCateogry ? "category" : "businessName";
+        //pull out entity value of local search query
+
+        if (lsq) {
+            context[collectingValue] = lsq;
+            context.hasNameOrCategory = true;
+            delete context.MISSINGBUSINESSNAME;
+            delete context.MISSINGCATEGORY;
+        } else {
+            var otherEntityValue = helpers.checkOtherEntities(entities);
+
+            if (otherEntityValue) {
+                context["POSSIBLE" + collectingValue.toUpperCase()] = otherEntityValue;
+            } else {
+                context["MISSING" + collectingValue.toUpperCase()] = true;
+            }
+        }
+        return Promise.resolve(context);
+
+        ///////
+
+
         if (context.POSSIBLEBUSINESSNAME) {
             var businessName = context.POSSIBLEBUSINESSNAME;
             delete context.POSSIBLEBUSINESSNAME;
@@ -60,21 +82,21 @@ var actions = {
             var businessName = helpers.firstEntityValue(entities, "local_search_query");
         }
 
-        if (businessName) {
-            context.businessName = businessName;
-            context.hasNameOrCategory = true;
-            console.log("Captured business name " + context.businessName);
-            if (context.missingName) {
-                delete context.missingName;
-            }
-        } else {
-            var otherEntityValue = helpers.checkOtherEntities(entities);
+        // if (businessName) {
+        //     context.businessName = businessName;
+        //     context.hasNameOrCategory = true;
+        //     console.log("Captured business name " + context.businessName);
+        //     if (context.MISSINGBUSINESSNAME) {
+        //         delete context.MISSINGBUSINESSNAME;
+        //     }
+        // } else {
+        //     var otherEntityValue = helpers.checkOtherEntities(entities);
 
-            if (otherEntityValue) {
-                context.POSSIBLEBUSINESSNAME = otherEntityValue;
-            } else {
-                context.missingName = true;
-            }
+        //     if (otherEntityValue) {
+        //         context.POSSIBLEBUSINESSNAME = otherEntityValue;
+        //     } else {
+        //         context.MISSINGBUSINESSNAME = true;
+        //     }
         }
         return Promise.resolve(context);
     },
@@ -191,7 +213,7 @@ var actions = {
             delete context.doNotUseCL;
             context.city = contxt.detectedCity;
             context.state = context.detectedState;
-            context.displayLocation = context.city + ", " +context.state;
+            context.displayLocation = context.city + ", " + context.state;
             context.useCL = true;
         }
         else if (answer === "No") {

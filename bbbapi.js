@@ -16,6 +16,8 @@ function makeLink(query, cb) {
     if (query.category) reqLink += "&PrimaryCategory=" + query.category;
     if (query.zip) reqLink += '&PostalCode=' + query.zip;
 
+    reqLink = reqLink.replace(/ /g, "+");
+
 
     findBusiness(reqLink, function (somedata) {
         if (somedata == "NoData") {
