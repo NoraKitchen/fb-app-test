@@ -43,6 +43,7 @@ function findOrCreateSession(fbid) {
         sessionId = new Date().toISOString();
         //setting to findByCategory manually here for testing
         sessions[sessionId] = { fbid: fbid, context: {["uid"]: fbid, findByCategory: true} };
+                // sessions[sessionId] = { fbid: fbid, context: {["uid"]: fbid} };
     }
     return sessionId;
 };

@@ -57,6 +57,7 @@ var actions = {
         if (context["POSSIBLE" + collectingValue.toUpperCase()]) {
             var lsq = context["POSSIBLE" + collectingValue.toUpperCase()];
             delete context["POSSIBLE" + collectingValue.toUpperCase()];
+            delete context[collectingValue.toUpperCase() +  "CONFIRMED"];
         } else {
             var lsq = helpers.firstEntityValue(entities, "local_search_query");
         }
@@ -125,6 +126,10 @@ var actions = {
         return Promise.resolve(context);
     },
     collectLocation({context, entities}) {
+        console.log("collecting location")
+        console.log("entities for collect location")
+        console.log(entities)
+        console.log(context)
 
         if (context.POSSIBLELOCATION) {
             var rawLocation = context.POSSIBLELOCATION;

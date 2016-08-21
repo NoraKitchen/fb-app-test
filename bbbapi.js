@@ -17,11 +17,15 @@ function makeLink(query, cb) {
     if (query.zip) reqLink += '&PostalCode=' + query.zip;
 
     reqLink = reqLink.replace(/ /g, "+");
+    console.log("TEST: " + reqLink)
 
 
     findBusiness(reqLink, function (somedata) {
         if (somedata == "NoData") {
-            fbm.sendFbMessage(query.userId, "Sorry, I couldn't find anything for " + query.name || query.category + " at that location.")
+            var catOrName = query.name || query.category;
+            var message = 'Sorry, I couldn\'t find anything for category "'  + catOrName + '" at that location.'
+            console.log(message);
+            fbm.sendFbMessage(query.userId, message);
         } else {
             // showListOfBusiness(sp.userId, somedata);
             var displayResults = "";
@@ -30,9 +34,8 @@ function makeLink(query, cb) {
                 var businessEntry = somedata[i];
                 displayResults += businessEntry.OrganizationName + ": " + businessEntry.Address + "  //  ";
                 // categories += businessEntry.PrimaryCategory + "  //  ";
-
             }
-            console.log("TEST:")
+                fbm.sendFbMessage(query.userId, displayResults);
         }
     });
 
